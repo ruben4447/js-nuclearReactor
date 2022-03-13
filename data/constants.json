@@ -1,0 +1,8 @@
+{
+  "reactor_commission_time": 3000,
+  "reactor_commission_price": 10000000,
+  "starting_money": 10001500,
+  "reactor_decommission_price": 15000000,
+  "reactor_decommission_time": 45000,
+  "repair_dome_cost": 2000000
+}
