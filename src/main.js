@@ -59,4 +59,22 @@ io.on("connection", socket => {
       }
     }
   });
+  socket.on("create-account", async ({ username, password }) => {
+    username = username.trim();
+    password = password.trim();
+    if (klass === undefined) {
+      if (username.length === 0 || !new RegExp(data.constants.name_regex, "g").test(username)) {
+        socket.emit("alert", { title: "Invalid Username", txt: `Must match ${new RegExp(data.constants.name_regex, "g")}` });
+      } else if (password.length === 0 || !new RegExp(data.constants.name_regex, "g").test(password)) {
+        socket.emit("alert", { title: "Invalid Password", txt: `Must match ${new RegExp(constants.name_regex, "g")}` });
+      } else {
+        let ok = await data.createUser(username, password);
+        if (ok) {
+          socket.emit("account-created", username);
+        } else {
+          socket.emit("creation-failed");
+        }
+      }
+    }
+  });
 });

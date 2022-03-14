@@ -51,4 +51,20 @@ router.get('/logout/:token', async (req, res, next) => {
   res.redirect("/login.html?logout");
 });
 
+// Delete account
+router.get('/delete/:token', async (req, res, next) => {
+  if (req.session.loggedIn) {
+    console.log(`[DELETE]  username="${req.session.username}"`);
+    let ok = await data.delUser(req.session.username);
+    if (ok) {
+      req.session.loggedIn = false;
+      delete req.session.username;
+      delete req.session.time;
+      delete req.session.token;
+      if (req.params.token) auth.remove(req.params.token);
+    }
+  }
+  res.redirect("/login.html");
+});
+
 module.exports = router;

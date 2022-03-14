@@ -35,8 +35,8 @@ class MainPageConnection extends Connection {
     this.socket.on("comission", async ({ name }) => {
       if (this.data.user.money >= this.data.user.reactor_commission_price) {
         name = name.trim();
-        if (name.length === 0 || !data.constants.name_regex.test(name)) {
-          this.alert("Error", `Invalid reactor name provided\nMust match ${data.constants.name_regex}`);
+        if (name.length === 0 || !new RegExp(data.constants.name_regex, "g").test(name)) {
+          this.alert("Error", `Invalid reactor name provided\nMust match ${new RegExp(data.constants.name_regex, "g")}`);
         } else {
           if (name in this.data.user.reactors) {
             this.alert("Error", `Reactor with name ${name} already exists`);

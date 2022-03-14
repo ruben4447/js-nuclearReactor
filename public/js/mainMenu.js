@@ -25,6 +25,7 @@ function main() {
   document.getElementById("total-money").innerText = data.user.money.toLocaleString("en-GB");
   document.getElementById("reactor-count").innerText = Object.keys(data.user.reactors).length.toLocaleString("en-GB");
   document.getElementById("link-user-homepage").setAttribute("href", "/user.html?" + data.token);
+  document.getElementById("logout").setAttribute("href", "/logout/" + data.token);
   if (init) {
     document.getElementById("link-new-reactor").addEventListener('click', () => {
       if (confirm(`Comission a new reactor for £${data.user.reactor_commission_price.toLocaleString("en-GB")}?`)) {
@@ -35,6 +36,11 @@ function main() {
         } else {
           displayMessage("Insufficient funds!", `It costs £${data.user.reactor_commission_price.toLocaleString("en-GB")} to comission a new reactor.`);
         }
+      }
+    });
+    document.getElementById("link-delete-account").addEventListener('click', () => {
+      if (confirm(`Delete account?`)) {
+        location.href = '/delete/' + data.token;
       }
     });
   }

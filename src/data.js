@@ -2,7 +2,6 @@ const path = require("path");
 const fs = require("fs");
 
 const constants = JSON.parse(fs.readFileSync("data/constants.json", "utf-8"));
-constants.name_regex = new RegExp(constants.name_regex, "g");
 
 async function readJson(filename) {
   return new Promise(res => fs.readFile(path.join("data", filename), "utf-8", (e, x) => res(JSON.parse(x))));
