@@ -4,8 +4,8 @@ const socketio = require('socket.io');
 const router = require('./router.js');
 const uuid = require("uuid");
 const auth = require('./auth.js');
-
 const data = require("./data.js");
+const conns = require("./conns.js");
 
 const PORT = 3000;
 
@@ -27,13 +27,26 @@ io.on("connection", socket => {
   console.log("New Connection: " + socket.id);
 
   let klass;
-  socket.on("auth", ({ token, loc }) => {
+  socket.on("auth", async ({ token, loc }) => {
     if (klass === undefined) {
       if (auth.exists(token)) {
-        socket.emit("auth", {
-
-        });
+        switch (loc) {
+          case 1:
+            klass = new conns.MainPageConnection(socket, {
+              token,
+              username: auth.get(token),
+              user: await data.getUserData(auth.get(token)),
+              constants: data.constants
+            });
+            break;
+          default:
+            // Unknown request origin
+            console.log(`<auth>  Invalid origin location - ${loc}`);
+            socket.emit("auth", false);
+        }
+        if (klass) console.log(`<auth>  Forwarded connection to ${klass.constructor.name}`);
       } else {
+        console.log(`<auth>  Invalid auth token - ${token}`);
         socket.emit("auth", false);
       }
     }

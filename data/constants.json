@@ -1,8 +1,10 @@
 {
   "reactor_commission_time": 3000,
   "reactor_commission_price": 10000000,
+  "reactor_comission_mult": 2,
   "starting_money": 10001500,
   "reactor_decommission_price": 15000000,
-  "reactor_decommission_time": 45000,
-  "repair_dome_cost": 2000000
+  "reactor_decommission_time": 4500,
+  "repair_dome_cost": 2000000,
+  "name_regex": "^[A-Za-z0-9\\-_\\$@]*$"
 }
