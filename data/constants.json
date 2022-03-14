@@ -6,5 +6,6 @@
   "reactor_decommission_price": 15000000,
   "reactor_decommission_time": 4500,
   "repair_dome_cost": 2000000,
-  "name_regex": "^[A-Za-z0-9\\-_\\$@]*$"
+  "name_regex": "^[A-Za-z0-9\\-_\\$@]*$",
+  "income_mult_next": 0.1
 }

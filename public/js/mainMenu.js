@@ -14,7 +14,7 @@ socket.on('data', data_ => {
   data = data_;
   if (data.update) main();
 });
-socket.on("alert", txt => alert(txt));
+socket.on("alert", ({ title, txt }) => displayMessage(title, txt));
 
 let init = true;
 function main() {
@@ -33,7 +33,7 @@ function main() {
           if (name === null) return;
           socket.emit(`comission`, { name });
         } else {
-          alert(`Insufficient funds!\nIt costs £${data.user.reactor_commission_price.toLocaleString("en-GB")} to comission a new reactor.`);
+          displayMessage("Insufficient funds!", `It costs £${data.user.reactor_commission_price.toLocaleString("en-GB")} to comission a new reactor.`);
         }
       }
     });
@@ -58,7 +58,7 @@ function main() {
         if (data.user.money >= data.user.reactor_decommission_price) {
           socket.emit("decomission", { name });
         } else {
-          alert(`Insufficient funds!\nIt costs £${data.user.reactor_decommission_price.toLocaleString("en-GB")} to decomission a reactor.`);
+          display(`Insufficient funds!`, `It costs £${data.user.reactor_decommission_price.toLocaleString("en-GB")} to decomission a reactor.`);
         }
       }
     });

@@ -7,7 +7,7 @@ const auth = require('./auth.js');
 const data = require("./data.js");
 const conns = require("./conns.js");
 
-const PORT = 3000;
+const PORT = process.argv.length > 2 ? parseInt(process.argv[2]) : 3000;
 
 const app = express();
 
@@ -33,6 +33,14 @@ io.on("connection", socket => {
         switch (loc) {
           case 1:
             klass = new conns.MainPageConnection(socket, {
+              token,
+              username: auth.get(token),
+              user: await data.getUserData(auth.get(token)),
+              constants: data.constants
+            });
+            break;
+          case 2:
+            klass = new conns.UserPageConnection(socket, {
               token,
               username: auth.get(token),
               user: await data.getUserData(auth.get(token)),

@@ -8,8 +8,8 @@ class Connection {
   }
 
   /** Alert client */
-  alert(text) {
-    this.socket.emit("alert", text);
+  alert(title, txt) {
+    this.socket.emit("alert", { title, txt });
   }
 
   /** Updates clients data */
@@ -23,6 +23,7 @@ class Connection {
   }
 }
 
+// For index.html
 class MainPageConnection extends Connection {
   constructor(socket, data, submitAuthOnInit = true) {
     super(socket, data, submitAuthOnInit);
@@ -35,10 +36,10 @@ class MainPageConnection extends Connection {
       if (this.data.user.money >= this.data.user.reactor_commission_price) {
         name = name.trim();
         if (name.length === 0 || !data.constants.name_regex.test(name)) {
-          this.alert(`Invalid reactor name provided\nMust match ${data.constants.name_regex}`);
+          this.alert("Error", `Invalid reactor name provided\nMust match ${data.constants.name_regex}`);
         } else {
           if (name in this.data.user.reactors) {
-            this.alert(`Reactor with name ${name} already exists`);
+            this.alert("Error", `Reactor with name ${name} already exists`);
           } else {
             this.data.user.money -= this.data.user.reactor_commission_price; // Decrease user money - "spent"
             this.data.user.alltime_reactors++;
@@ -46,7 +47,7 @@ class MainPageConnection extends Connection {
             await this.updateUserDataFile();
             this.sendData(false);
 
-            this.alert(`Reactor ${name} is being comissioned... (${data.constants.reactor_commission_time / 1000} secs)`);
+            this.alert(`Reactor ${name} is being comissioned`, `Wait ${data.constants.reactor_commission_time / 1000} seconds`);
             setTimeout(async () => {
               data.createReactor(this.data.user, name);
               this.sendData(true);
@@ -55,7 +56,7 @@ class MainPageConnection extends Connection {
           }
         }
       } else {
-        this.alert(`Insufficient funds!\nIt costs £${this.data.user.reactor_commission_price.toLocaleString("en-GB")} to comission a new reactor.`);
+        this.alert("Insufficient funds!", `It costs £${this.data.user.reactor_commission_price.toLocaleString("en-GB")} to comission a new reactor.`);
       }
     });
 
@@ -69,17 +70,40 @@ class MainPageConnection extends Connection {
           await this.updateUserDataFile();
           this.sendData(false);
 
-          this.alert(`Reactor ${name} is being decomissioned... (${data.constants.reactor_decommission_time / 1000} secs)`);
+          this.alert(`Reactor ${name} is being decomissioned`, `Wait ${data.constants.reactor_decommission_time / 1000} seconds`);
           setTimeout(async () => {
             delete this.data.user.reactors[name]; // Delete from Reactors object
             this.sendData(true);
             await this.updateUserDataFile();
           }, data.constants.reactor_decommission_time);
         } else {
-          this.alert(`No reactor with name ${name}.`);
+          this.alert("Error", `No reactor with name ${name}.`);
         }
       } else {
-        this.alert(`Insufficient funds!\nIt costs £${this.data.user.reactor_decommission_price.toLocaleString("en-GB")} to decomission a reactor.`);
+        this.alert(`Insufficient funds!`, `It costs £${this.data.user.reactor_decommission_price.toLocaleString("en-GB")} to decomission a reactor.`);
+      }
+    });
+  }
+}
+
+// For user.html
+class UserPageConnection extends Connection {
+  constructor(socket, data, submitAuthOnInit = true) {
+    super(socket, data, submitAuthOnInit);
+    this._init();
+  }
+
+  _init() {
+    // Upgrade income multiplier
+    this.socket.on("upgrade-income", async () => {
+      if (this.data.user.money >= this.data.user.offline_income_mult_upgrade) {
+        this.data.user.money -= this.data.user.offline_income_mult_upgrade;
+        this.data.user.offline_income_mult_upgrade *= 2;
+        this.data.user.offline_income_mult += data.constants.income_mult_next;
+        this.sendData(true);
+        await this.updateUserDataFile();
+      } else {
+        this.alert(`Insufficient funds!`, `It costs £${this.data.user.offline_income_mult_upgrade.toLocaleString("en-GB")} to upgrade your income multiplier.`);
       }
     });
   }
@@ -87,4 +111,5 @@ class MainPageConnection extends Connection {
 
 module.exports = {
   MainPageConnection,
+  UserPageConnection,
 };
