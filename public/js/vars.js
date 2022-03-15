@@ -1,10 +1,6 @@
-function bool(string){return (string == 'true');}
-
-const DO_DAMAGE=bool(USER.REACTOR_DO_DAMAGE), DEPLETE_FUEL=bool(USER.REACTOR_DEPLETE_FUEL), MOVE_TIME=bool(USER.REACTOR_MOVE_TIME), MOVE_TIME_EVERY=Number(USER.REACTOR_MOVE_TIME_EVERY);
-var containmentDome, incomePS, fuelDep;
 const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const maxDaysOfMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 21, 30, 31];
+const maxDaysOfMonths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const availableWeather = {
   "January" : ["snow","frost","windy","rain","blizzard"],
   "February" : ["snow, frost, windy", "rain","blizzard"],
@@ -18,7 +14,7 @@ const availableWeather = {
   "October" : ["rain","windy"],
   "November" : ["rain","windy","frost"],
   "December" : ["snow","frost","windy","rain"]
-}
+};
 const weatherValues = {
   "blizzard" : 1.3,
   "snow" : 1.2,
@@ -30,7 +26,7 @@ const weatherValues = {
   "indian summer" : 0.9,
   "heatwave" : 0.8,
   "drought" : 0.7
-}
+};
 const randomEvents = ["FA Final","BGT Final","Formula One","No TV","New PS6","Christmas Special","Concert"];
 const randomEventsValues = {
   "FA Final" : 1.2,
@@ -41,7 +37,7 @@ const randomEventsValues = {
   "New PS6" : 1.15,
   "Christmas Special" : 1.25,
   "Concert" : 1.4
-}
+};
 const timeOfDayValues = {
   "midnight" : 0.99,
   "night" : 0.995,
@@ -50,4 +46,4 @@ const timeOfDayValues = {
   "midday" : 1.00575,
   "afternoon" : 1.003,
   "evening" : 1.0015
-}
+};

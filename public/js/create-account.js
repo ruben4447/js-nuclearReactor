@@ -2,6 +2,8 @@ const socket = io();
 
 socket.on("alert", ({ title, txt }) => displayMessage(title, txt));
 
+initSound();
+
 function main() {
   const input_username = document.getElementById("username");
   const input_password = document.getElementById("input");

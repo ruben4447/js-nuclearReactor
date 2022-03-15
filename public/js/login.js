@@ -1,5 +1,5 @@
 window.addEventListener('load', () => {
-  const params = new URLSearchParams(location.search.substr(1));
+  const params = new URLSearchParams(location.search.substring(1));
   params.forEach((value, key) => {
     if (key === 'incorrect') {
       alert('Invalid Username or Passcode');

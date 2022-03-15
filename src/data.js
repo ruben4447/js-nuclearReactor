@@ -21,14 +21,9 @@ const getUserData = async username => await readJson(`user-${username}.json`);
 const setUserData = async (username, data) => await writeJson(`user-${username}.json`, data);
 const userExists = async username => username in (await getUsers());
 
-/** Return boolean success */
-async function createUser(username, password) {
-  const users = await getUsers();
-  if (username in users) return false;
-  users[username] = password;
-  await updateUsers(users);
-
-  const data = {
+/** Create new object for user info */
+function createNewUserDataObject() {
+  return {
     money: constants.starting_money,
     reactors: {},
     alltime_reactors: 0,
@@ -49,6 +44,16 @@ async function createUser(username, password) {
     REACTOR_MOVE_TIME: true,
     REACTOR_MOVE_TIME_EVERY: 1e3,
   };
+}
+
+/** Return boolean success */
+async function createUser(username, password) {
+  const users = await getUsers();
+  if (username in users) return false;
+  users[username] = password;
+  await updateUsers(users);
+
+  const data = createNewUserDataObject();
   await setUserData(username, data);
 
   return true;
@@ -72,6 +77,7 @@ function createReactor(data, reactorName) {
   data.reactors[reactorName] = {
     mode: "off",
     status: "off",
+    meltedDown: false,
     alarmStatus: "on",
     controlRods: 0,
     fuel: 100,
@@ -88,7 +94,7 @@ function createReactor(data, reactorName) {
     steamPressure: 0,
     turbineRPM: 0,
     powerOutput: 0,
-    connectedToGrid: "yes",
+    connectedToGrid: true,
     incomePerKWH: 0.13,
     incomePerMWH: 130,
     income: 0,
@@ -134,8 +140,8 @@ function createReactor(data, reactorName) {
     reactorSizeLvlLimit: 3,
     steamLvlLimit: 5,
     // off-line income variables
-    offline: "no",
-    lastOnline: "",
+    offline: true,
+    lastOnline: Date.now(),
     // Demand
     demandUB: "",
     demandLB: "",
@@ -160,6 +166,7 @@ module.exports = {
   setUserData,
   userExists,
   createUser,
+  createNewUserDataObject,
   delUser,
   createReactor,
 };

@@ -67,4 +67,20 @@ router.get('/delete/:token', async (req, res, next) => {
   res.redirect("/login.html");
 });
 
+// Reset account progress
+router.get('/reset/:token', async (req, res, next) => {
+  let ok = false;
+  if (req.session.loggedIn && auth.exists(req.params.token)) {
+    console.log(`[RESET]  username="${req.session.username}"`);
+    const userData = data.createNewUserDataObject();
+    await data.setUserData(req.session.username, userData);
+    ok = true;
+  }
+  if (ok) {
+    res.redirect("/?" + req.params.token);
+  } else {
+    res.redirect("/login.html");
+  }
+});
+
 module.exports = router;

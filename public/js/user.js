@@ -3,6 +3,8 @@ const socket = io();
 const token = Array.from(new URLSearchParams(location.search.substring(1)))?.[0]?.[0];
 socket.emit('auth', { token, loc: 2 }); // Tell server who and where we are
 
+initSound();
+
 var data;
 
 socket.on('auth', data_ => {

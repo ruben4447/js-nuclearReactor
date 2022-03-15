@@ -3,6 +3,8 @@ const socket = io();
 const token = Array.from(new URLSearchParams(location.search.substring(1)))?.[0]?.[0];
 socket.emit('auth', { token, loc: 1 }); // Tell server who and where we are
 
+initSound();
+
 var data;
 
 socket.on('auth', data_ => {
@@ -43,19 +45,35 @@ function main() {
         location.href = '/delete/' + data.token;
       }
     });
+    document.getElementById("link-reset-account").addEventListener('click', () => {
+      if (confirm(`Reset account progress?`)) {
+        location.href = '/reset/' + data.token;
+      }
+    });
   }
 
   // Populate reactor table
   const tbody = document.getElementById("reactor-tbody");
   tbody.innerHTML = "";
   for (let name in data.user.reactors) {
-    const tr = document.createElement("tr");
+    let tr = document.createElement("tr"), td;
     tbody.appendChild(tr);
     tr.insertAdjacentHTML("beforeend", `<td>${name}</td>`);
-    tr.insertAdjacentHTML("beforeend", `<td><a href='/view.html?${data.token}&reactor=${name}'>Controls</a></td>`);
 
-    let td = document.createElement("td");
-    let link = document.createElement("a");
+    td = document.createElement("td");
+    link = document.createElement("a");
+    td.appendChild(link);
+    tr.appendChild(td);
+    if (data.user.reactors[name.meltedDown]) {
+      link.href = "javascript:void(0)";
+      link.innerHTML = "<em>Melted Down</em>";
+    } else {
+      link.innerText = "Controls";
+      link.href = `/view.html?${data.token}&reactor=${name}`;
+    }
+
+    td = document.createElement("td");
+    link = document.createElement("a");
     td.appendChild(link);
     link.href = "javascript:void(0);";
     link.innerText = "Decomission";

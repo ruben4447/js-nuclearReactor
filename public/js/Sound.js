@@ -49,6 +49,24 @@ class Sounds {
       return false;
     }
   }
+  /** Same as Sounds.play, but makes sure only one instance of the sound is playing */
+  static playOnce(name) {
+    let playing = false;
+    for (let i = Sounds._playing.length - 1; i > -1; i--) {
+      if (Sounds._playing[i].playingName === name && Sounds._playing[i].isPlaying) {
+        if (playing) {
+          Sounds[i].stop();
+          Sounds._playing.splice(i, 1);
+        } else {
+          playing = true;
+        }
+      }
+    }
+    if (!playing) {
+      Sounds.play(name);
+    }
+    return !playing;
+  }
   /**
    * Create a new Sound object
    * @param  name    Name of sound
@@ -248,12 +266,14 @@ class Sound {
    * @async
    */
   async stop() {
-    // Close current audio context
-    await this.ctx.close();
-    this.isPlaying = false;
-    this.activeAudio = null;
-    // Create new stuff
-    this._loadInternal();
+    if (this.isPlaying) {
+      // Close current audio context
+      await this.ctx.close();
+      this.isPlaying = false;
+      this.activeAudio = null;
+      // Create new stuff
+      this._loadInternal();
+    }
   }
 }
 /**

@@ -3,10 +3,9 @@
   top: 0;
   left: 0;
   padding: 4px;
-  margin-top: 10px;
-  /* width: calc((100vw /2) - 10px); */
-  width: calc(100vw - 10px);
-  height: calc((100vh - 6% - 8px) - 5%);
+  width: 99.8vw;
+  height: calc(93vh);
+  margin: 0;
 }
 .interface h1 {
   text-align: center;

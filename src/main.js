@@ -27,7 +27,7 @@ io.on("connection", socket => {
   console.log("New Connection: " + socket.id);
 
   let klass;
-  socket.on("auth", async ({ token, loc }) => {
+  socket.on("auth", async ({ token, loc, reactor }) => {
     if (klass === undefined) {
       if (auth.exists(token)) {
         switch (loc) {
@@ -42,6 +42,15 @@ io.on("connection", socket => {
           case 2:
             klass = new conns.UserPageConnection(socket, {
               token,
+              username: auth.get(token),
+              user: await data.getUserData(auth.get(token)),
+              constants: data.constants
+            });
+            break;
+          case 3:
+            klass = new conns.ReactorPageConnection(socket, {
+              token,
+              reactor,
               username: auth.get(token),
               user: await data.getUserData(auth.get(token)),
               constants: data.constants

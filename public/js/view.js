@@ -1,421 +1,496 @@
-function qs(a) { return document.querySelector(a); }
-function Body() { return document.body; }
-function ID(a) { return qs(`#${a}`); }
-function num(a) { return Number(a); }
+const socket = io();
+
+const params = new URLSearchParams(location.search.substring(1));
+const reactorName = params.get("reactor");
+const token = Array.from(params)?.[0]?.[0];
+socket.emit('auth', { token, reactor: reactorName, loc: 3 }); // Tell server who and where we are
+
+var data, reactor;
+var fuelDep; // Fuel depletion interval ID
+var incomePS; // Income interval ID
+var containmentDome; // Containment dome damage interval ID
+
+initSound();
+
+socket.on('auth', data_ => {
+  if (data_ === false) {
+    location.href = '/logout/' + token;
+  }
+});
+socket.on('data', data_ => {
+  data = data_;
+  if (data.update) main();
+});
+socket.on("alert", ({ title, txt }) => displayMessage(title, txt));
+socket.on("offline-earnings", ({ time, income }) => {
+  displayMessage("Offline Earnings", `You were offline for ${fancyTimer(time)}, and this unit generated £${comma(income)} whilst you were away`);
+});
+
+const getData = () => data;
+
+let initial = true;
+function main() {
+  reactor = data.user.reactors[reactorName];
+  document.title = `RNMC - Unit ${reactorName}`;
+
+    // General
+  document.getElementById("reactor-est").innerText = new Date(reactor.est).toString().split(" GMT")[0];
+
+  // Status info
+  document.getElementById("stats-status-ok").innerText="0C";
+  document.getElementById("stats-status-warning").innerText = `${reactor.TBwarning}C`;
+  document.getElementById("stats-status-alert").innerText = `${reactor.TBalert}C`;
+  document.getElementById("stats-status-critical").innerText = `${reactor.TBcritical}C`;
+
+  // Max level info
+  document.getElementById("reactor-size-lvl-limit").innerText = reactor.reactorSizeLvlLimit;
+  document.getElementById("turbines-lvl-limit").innerText = reactor.turbineLvlLimit;
+  document.getElementById("steam-lvl-limit").innerText = reactor.steamLvlLimit;
+  document.getElementById("generators-lvl-limit").innerText = reactor.generatorLvlLimit;
+  document.getElementById("fuel-rods-lvl-limit").innerText = reactor.fuelRodLifeLvlLimit;
+  document.getElementById("containment-dome-lvl-limit").innerText = reactor.containmentDomeLvlLimit;
+  document.body.setAttribute("status", reactor.status);
+  document.querySelectorAll(".reactor-name").forEach(el => el.innerText = reactorName);
+
+  if (initial) {
+    dmgDome();
+    setIncome();
+    setFuelDep();
+    editDemand(2);
+    if (data.user.REACTOR_MOVE_TIME == true) setInterval(moveTime, data.user.REACTOR_MOVE_TIME_EVERY);
+
+    document.getElementById("btn-repair-fuel").addEventListener("click", () => repair("fuel"));
+    document.getElementById("btn-repair-dome").addEventListener("click", () => repair("containmentDome"));
+    document.getElementById("btn-collect-money").addEventListener("click", () => collectMoney());
+    document.getElementById("link-back").addEventListener("click", () => {
+      saveProgress();
+      location.href = "/?" + data.token;
+    });
+    document.getElementById("btn-controlRods-lower").addEventListener("click", () => controlRods("lower"));
+    document.getElementById("btn-controlRods-raise").addEventListener("click", () => controlRods("raise"));
+    document.getElementById("btn-controlRods-min").addEventListener("click", () => controlRods("TO:0"));
+    document.getElementById("btn-controlRods-mid").addEventListener("click", () => controlRods("TO:50"));
+    document.getElementById("btn-controlRods-max").addEventListener("click", () => controlRods("TO:100"));
+    document.getElementById("btn-coolant-inc").addEventListener("click", () => coolantPumps("inc"));
+    document.getElementById("btn-coolant-dec").addEventListener("click", () => coolantPumps("dec"));
+    document.getElementById("btn-coolant-min").addEventListener("click", () => coolantPumps("TO:0"));
+    document.getElementById("btn-coolant-mid").addEventListener("click", () => coolantPumps("TO:50"));
+    document.getElementById("btn-coolant-max").addEventListener("click", () => coolantPumps("TO:100"));
+    document.getElementById("btn-grid-connect").addEventListener("click", () => socket.emit("connect-grid", true));
+    document.getElementById("btn-grid-disconnect").addEventListener("click", () => socket.emit("connect-grid", false));
+  }
+
+  _loadScreen();
+
+  initial = false;
+}
+
+function num(a) { return +a; }
 window.meltdownFunc = false;
 
 function changePane(pane, caller) {
-  let PANES = document.querySelectorAll(".pane");
-  for (var i = 0; i < PANES.length; i++) { PANES[i].style.display = 'none'; }
-  let PANE_A = document.querySelectorAll(".a-pane");
-  for (var i = 0; i < PANE_A.length; i++) { PANE_A[i].setAttribute("style", "background:none;color:#AAAEAD"); }
-  ID(pane).style.display = 'block';
-  caller.setAttribute("style", "background:blue;color:white;")
+  const panes = document.querySelectorAll(".pane");
+  for (let i = 0; i < panes.length; i++) { panes[i].style.display = 'none'; }
+  let panesA = document.querySelectorAll(".a-pane");
+  for (let i = 0; i < panesA.length; i++) { panesA[i].setAttribute("style", "background:none;color:#AAAEAD"); }
+  document.getElementById(pane).style.display = 'block';
+  caller.setAttribute("style", "background:blue;color:white;");
 }
 
-function _MELTDOWN_() {
-  if (window.meltdownFunc == true) return false;
+function meltdown() {
+  if (window.meltdownFunc) return false;
   window.meltdownFunc = true;
   // Increase users' meltdown count
-  USER.meltdowns = num(USER.meltdowns) + 1;
-  saveUserData(4447);
+  data.user.meltdowns++;
+  saveProgress();
   stopAlarms(true);
-  MELTDOWN.play();
-  Body().setAttribute("status", "meltdown");
-  MELTDOWN.play();
-  BUZZER_ALARM.play();
-  qs(".meltdown-wrapper").style.display = "block";
+  Sounds.play("meltdown");
+  document.body.setAttribute("status", "meltdown");
+  Sounds.play("buzzer_alarm");
+  document.querySelector(".meltdown-wrapper").style.display = "block";
   setTimeout(() => {
-    BUZZER_ALARM.pause();
-    qs(".meltdown-wrapper").setAttribute("stage", "two");
+    Sounds.stop("buzzer_alarm");
+    document.querySelector(".meltdown-wrapper").setAttribute("stage", "two");
     setTimeout(() => {
-      MELTDOWN.pause();
-      window.location.href = 'index.php?hadMeltdown=Yes';
-      var CON = new XMLHttpRequest();
-      CON.open("GET", `sql/del_reactor.php?token=666&name=${REACTOR.name}`);
-      CON.onload = () => {
-        window.location.href = 'index.php?hadMeltdown=Yes';
-      }
-      CON.send();
+      Sounds.stop("meltdown");
+      // reactor.meltedDown = true;
+      // saveProgress();
+      setTimeout(() => window.location.href = '/?' + data.token, 500);
     }, 9000);
-  }, 5000)
+  }, 5000);
 }
 
-function repair(item, cost) {
+function repair(item) {
   if (item == undefined) { return false; }
-  if (num(REACTOR.controlRods) != 0) { displayMessage("Unable to Repair Item", `Unable to repair ${item}: core temperature must be 0C`); return false; }
-  if (item == "fuel" && num(REACTOR.fuel) >= 50) { displayMessage("Unable to Replace Fuel Rods", `Cannot replace fuel rods as they are in a condition of 50% or better`); return false; }
-  var con = new XMLHttpRequest();
-  con.open("GET", `php/money.php?token=666b&action=DEC&amount=${cost}`);
-  con.onload = () => {
-    if (con.responseText == "OK") {
-      switch (item) {
-        case 'containmentDome':
-          REACTOR.containmentDome = 100;
-          REACTOR.containmentDomeStatus = "good";
-          REACTOR.REPAIR_containmentDomeCost = num(REACTOR.REPAIR_containmentDomeCost) * 2;
-          break;
-        case 'fuel':
-          REACTOR.fuel = 100;
-          break;
-        default:
-          break;
-      }
-      _loadScreen(true);
-    } else {
-      displayMessage("Unable to Repair Item", con.responseText);
+  if (reactor.controlRods === 0) {
+    let cost, action;
+    switch (item) {
+      case 'fuel':
+        cost = reactor.replaceFuelCost;
+        action = () => {
+          reactor.fuel = 100;
+        };
+        break;
+      case 'containmentDome':
+        cost = reactor.REPAIR_containmentDomeCost;
+        action = () => {
+          reactor.containmentDome = 100;
+          reactor.containmentDomeStatus = "good";
+          reactor.REPAIR_containmentDomeCost *= 2;
+        };
+        break;
+      default:
+        displayMessage("Unable to repair item", `Unknown item ${item}`);
     }
+    if (typeof cost === "number") {
+      if (data.user.money >= cost) {
+        data.user.money -= cost;
+        action();
+        displayMessage("Repaired Item", `Repaired ${item} for £${comma(cost)}`);
+        _loadScreen();
+      } else {
+        displayMessage("Insufficient funds", `It costs £${cost.toLocaleString("en-GB")} to repair ${item}`);
+      }
+    }
+  } else {
+    displayMessage("Unabel to repair item", "Core temperature must be at 0C");
   }
-  con.send();
 }
 
+/** Play sound according to reactor status */
 function playSound() {
-  if (REACTOR.alarmStatus == "off") { return; }
-  var status = REACTOR.status;
-  stopAlarms(true);
-  switch (status) {
-    case 'warning':
-      WHOOP.play();
-      break;
-    case 'alert':
-      BUZZER_ALARM.play();
-      break;
-    case 'critical':
-      BUZZER_ALARM.play();
-      MISSILE_ALERT.play();
-      break;
-    default:
-      WHOOP.pause();
-      BUZZER_ALARM.pause();
-      MISSILE_ALERT.pause();
+  if (reactor.alarmStatus === "off") { return; }
+  let playing = false;
+  if (reactor.status === "warning" || reactor.containmentDomeStatus === "warning") {
+    Sounds.playOnce("whoop");
+    Sounds.stop("buzzer_alarm");
+    Sounds.stop("missile_alert");
+    playing = true;
+  }
+  if (reactor.status === "alert" || reactor.containmentDomeStatus === "alert") {
+    Sounds.playOnce("buzzer_alarm");
+    Sounds.stop("whoop");
+    Sounds.stop("missile_alert");
+    playing = true;
+  }
+  if (reactor.status === "critical" || reactor.containmentDomeStatus === "critical") {
+    Sounds.playOnce("buzzer_alarm");
+    Sounds.playOnce("missile_alert");
+    Sounds.stop("whoop");
+    playing = true;
+  }
+  if (!playing) {
+    Sounds.stop("whoop");
+    Sounds.stop("buzzer_alarm");
+    Sounds.stop("missile_alert");
   }
 }
 
 function stopAlarms(simple) {
-  WHOOP.pause();
-  BUZZER_ALARM.pause();
-  MISSILE_ALERT.pause();
-  if (simple == true) { return; }
-  REACTOR.alarmStatus = "off";
-  _loadScreen(true);
+  Sounds.stop("whoop");
+  Sounds.stop("buzzer_alarm");
+  Sounds.stop("missile_alert");
+  if (simple) { return; }
+  data.user.reactors[reactorName].alarmStatus = "off";
+  _loadScreen();
 }
 function startAlarms() {
-  BEEP.play();
-  REACTOR.alarmStatus = "on";
-  _loadScreen(true);
+  Sounds.play("beep");
+  data.user.reactors[reactorName].alarmStatus = "on";
+  _loadScreen();
   playSound();
 }
 
-// Depleting fuel
+/** Interval: deplete fuel */
 function setFuelDep() {
   clearInterval(fuelDep);
   fuelDep = setInterval(setFuelDepDo, 10000);
 }
+
+/** Delete fuel */
 function setFuelDepDo() {
-  let DEC = num(REACTOR.fuelDecrease);
-  if (DEC > 0 && DEPLETE_FUEL == true) {
-    REACTOR.fuel = num(REACTOR.fuel) - DEC;
-    _loadScreen(true);
+  if (reactor.fuelDecrease > 0 && data.user.reactor_DEPLETE_FUEL && reactor.fuel > 0) {
+    reactor.fuel -= reactor.fuelDecrease;
+    _loadScreen();
   }
 }
-// Adding income to moneyGenerated
+
+/** Interval: add income to total money generated */
 function setIncome() {
   clearInterval(incomePS);
   incomePS = setInterval(setIncomeDo, 1000);
 }
+
+/** Add income to total money generated */
 function setIncomeDo() {
-  let income = num(REACTOR.income);
-  if (income > 0) {
-    REACTOR.moneyGenerated = num(REACTOR.moneyGenerated) + income;
-    REACTOR.totalMoneyGenerated = num(REACTOR.totalMoneyGenerated) + income;
-    _loadScreen(true);
+  if (reactor.income > 0) {
+    reactor.moneyGenerated = +reactor.moneyGenerated + reactor.income;
+    reactor.totalMoneyGenerated = +reactor.totalMoneyGenerated + reactor.income;
+    _loadScreen();
   }
-}
-function collectMoney() {
-  let money = num(REACTOR.moneyGenerated);
-  if (money < 0) { return; }
-  if (money < 1000) { displayMessage("Unfeesable Amount", "There must be over £1000 for you to collect the money"); return; }
-  var con = new XMLHttpRequest();
-  con.open("GET", `php/money.php?token=666b&action=INC&amount=${money}`);
-  con.onload = () => {
-    let text = con.responseText.trim();
-    if (text == "OK") {
-      CASH.play();
-      displayMessage("Collected Money", `Collected £${comma(money)}.`);
-      REACTOR.moneyGenerated = 0;
-      _loadScreen(true);
-    } else {
-      displayMessage("Uh Oh", "Could not collect money: " + text);
-    }
-  }
-  con.send();
 }
 
-// Damaging dome functions
+/** Collect income money */
+function collectMoney() {
+  const MIN = 1000;
+  if (reactor.moneyGenerated <= MIN) {
+    displayMessage("Unfeesable Amount", `There must at least £${MIN} for you to collect the money`);
+  } else {
+    Sounds.play("cash");
+    displayMessage("Collected Money", `Collected £${comma(reactor.moneyGenerated)}.`);
+    data.user.money += reactor.moneyGenerated;
+    reactor.moneyGenerated = 0;
+    _loadScreen();
+  }
+}
+
+/** Set interval for dome damage */
 function dmgDome() {
   clearInterval(containmentDome);
   containmentDome = setInterval(dmgDomeDo, 1000);
 }
+
+/** Function to damage containent dome health */
 function dmgDomeDo() {
-  let dmg = num(REACTOR.containmentDomeDmgRate);
-  if (dmg > 0 && DO_DAMAGE == true) {
-    let health = num(REACTOR.containmentDome) - dmg;
-    REACTOR.containmentDome = health;
-    console.warn(`Damaging Dome @ ${dmg}/s\n\t[Dome now @ ${health}%]`);
-    if (health < 100) { REACTOR.containmentDomeStatus = "good"; }
-    if (health < 30) { REACTOR.containmentDomeStatus = "warning"; }
-    if (health < 10) { REACTOR.containmentDomeStatus = "alert"; }
-    if (health < 5) { REACTOR.containmentDomeStatus = "critical"; }
-    if (health < 1) { REACTOR.containmentDomeStatus = "meltdown"; _MELTDOWN_(); }
-    _loadScreen(true);
+  if (reactor.containmentDomeDmgRate > 0 && data.user.REACTOR_DO_DAMAGE) {
+    setDomeHealth(reactor.containmentDome - reactor.containmentDomeDmgRate);
+    if (reactor.containmentDomeStatus === "meltdown") meltdown();
+    _loadScreen();
   }
 }
 
-function OPS() {
-  let temperature = (num(REACTOR.controlRods) * num(REACTOR.fuelRodsMult)) - (num(REACTOR.coolantPumps) * num(REACTOR.coolantMult));
-  let fuel = num(REACTOR.fuel);
-  REACTOR.baseload = (num(REACTOR.TBwarning) + num(REACTOR.baseloadConst)) * num(REACTOR.numberOfGenerators);
+function setDomeHealth(health) {
+  reactor.containmentDome = health;
+  reactor.containmentDomeStatus = getDomeStatus(health);
+}
+
+/** Simulate reactor: steam pressure, temperature */
+function simulateReactor() {
+  let temperature = (reactor.controlRods * reactor.fuelRodsMult) - (reactor.coolantPumps * reactor.coolantMult);
+  let fuel = reactor.fuel;
+  reactor.baseload = (reactor.TBwarning + reactor.baseloadConst) * reactor.numberOfGenerators;
   if (temperature < 1 || fuel < 1) {
-    REACTOR.temperatureNumber = 0;
-    REACTOR.steamPressure = 0;
-    REACTOR.turbineRPM = 0;
-    REACTOR.income = 0;
-    REACTOR.powerOutput = 0;
-    REACTOR.fuelDecrease = 0;
+    reactor.temperatureNumber = 0;
+    reactor.steamPressure = 0;
+    reactor.turbineRPM = 0;
+    reactor.income = 0;
+    reactor.powerOutput = 0;
+    reactor.fuelDecrease = 0;
   } else {
-    REACTOR.temperatureNumber = temperature;
-    REACTOR.temperatureText = "stable";
-    REACTOR.fuelDecrease = num(REACTOR.rFuelDecrease);
+    reactor.temperatureNumber = temperature;
+    reactor.temperatureText = "stable";
+    reactor.fuelDecrease = reactor.rFuelDecrease;
     if (temperature < 100) {
-      REACTOR.steamPressure = 0;
-      REACTOR.turbineRPM = 0;
-      REACTOR.powerOutput = 0;
-      REACTOR.income = 0;
-      REACTOR.fuelDecrease = 0;
+      reactor.steamPressure = 0;
+      reactor.turbineRPM = 0;
+      reactor.powerOutput = 0;
+      reactor.income = 0;
+      reactor.fuelDecrease = 0;
       return false;
     }
-    REACTOR.steamPressure = (temperature * 3) * num(REACTOR.steamPressureMult);
-    REACTOR.turbineRPM = ((num(REACTOR.steamPressure) * 3) * num(REACTOR.turbineRPMMult)) * num(REACTOR.numberOfTurbines);
-    REACTOR.powerOutput = (((num(REACTOR.turbineRPM) / 2) * num(REACTOR.generatorMult)).toFixed(1)) * num(REACTOR.numberOfGenerators);
-    if (REACTOR.connectedToGrid == "yes") {
-      REACTOR.income = Math.round(((num(REACTOR.powerOutput) / 60) / 60) * num(REACTOR.incomePerMWH));
-    } else { REACTOR.income = 0; }
-
-    if (REACTOR.powerOutput > REACTOR.demandLB && REACTOR.powerOutput <= REACTOR.demandUB) {
-      REACTOR.meetingDemand = "yes";
-      REACTOR.income = Math.round(num(REACTOR.income) * num(REACTOR.demandRewardBoost));
+    reactor.steamPressure = (temperature * 3) * num(reactor.steamPressureMult);
+    reactor.turbineRPM = reactor.steamPressure * 3 * reactor.turbineRPMMult * reactor.numberOfTurbines;
+    reactor.powerOutput = +(((reactor.turbineRPM / 2) * reactor.generatorMult).toFixed(1)) * reactor.numberOfGenerators;
+    if (reactor.connectedToGrid) {
+      reactor.income = Math.round(((reactor.powerOutput / 60) / 60) * reactor.incomePerMWH);
     } else {
-      REACTOR.meetingDemand = "no";
+      reactor.income = 0;
+    }
+
+    if (reactor.powerOutput > reactor.demandLB && reactor.powerOutput <= reactor.demandUB) {
+      reactor.meetingDemand = "yes";
+      reactor.income = Math.round(reactor.income * reactor.demandRewardBoost);
+    } else {
+      reactor.meetingDemand = "no";
     }
   }
 
   // Temp status
-  var fuelRodDec = num(REACTOR.fuelDecrease);
-  if (temperature <= 0) { REACTOR.temperatureText = "null"; REACTOR.status = "null"; REACTOR.containmentDomeDmgRate = 0; fuelRodDec = 0; }
-  if (temperature > 0) { REACTOR.temperatureText = "stable"; REACTOR.status = "OK"; REACTOR.containmentDomeDmgRate = 0; }
-  if (temperature > num(REACTOR.TBwarning)) { REACTOR.temperatureText = "high"; REACTOR.status = "warning"; REACTOR.containmentDomeDmgRate = 0.5; fuelRodDec += 0.1 }
-  if (temperature > num(REACTOR.TBalert)) { REACTOR.temperatureText = "very high"; REACTOR.status = "alert"; REACTOR.containmentDomeDmgRate = 1.5; fuelRodDec += 0.2 }
-  if (temperature > num(REACTOR.TBcritical)) { REACTOR.temperatureText = "critical"; REACTOR.status = "critical"; REACTOR.containmentDomeDmgRate = 3; fuelRodDec += 0.2 }
-  if (temperature > num(REACTOR.TBmeltdown)) {/*REACTOR.containmentDomeDmgRate = 100;*/ REACTOR.status = "meltdown"; _MELTDOWN_(); }
-  REACTOR.fuelDecrease = fuelRodDec;
-}
-function saveProgress(redirect, redirectURL) {
-  // Save reactor object
-  let DATA = JSON.stringify(REACTOR);
-  var CON = new XMLHttpRequest();
-  CON.open("POST", `php/saveProgress.php?token=666&r=${REACTOR.name}`);
-  CON.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-  CON.onload = () => {
-    //console.log(`<<<[!] ${CON.responseText} >>>`);
-    if (redirect == true) {
-      REACTOR.offline = "yes";
-      let t = new Date();
-      REACTOR.lastOnline = t.getTime();
-      saveProgress(false);
-      window.location.href = redirectURL;
-    }
-  }
-  CON.send(encodeURI(`json=${DATA}`));
+  let fuelRodDec = reactor.fuelDecrease;
+  if (temperature <= 0) { reactor.temperatureText = "null"; reactor.status = "null"; reactor.containmentDomeDmgRate = 0; fuelRodDec = 0; }
+  if (temperature > 0) { reactor.temperatureText = "stable"; reactor.status = "OK"; reactor.containmentDomeDmgRate = 0; }
+  if (temperature > reactor.TBwarning) { reactor.temperatureText = "high"; reactor.status = "warning"; reactor.containmentDomeDmgRate = 0.5; fuelRodDec += 0.1; }
+  if (temperature > reactor.TBalert) { reactor.temperatureText = "very high"; reactor.status = "alert"; reactor.containmentDomeDmgRate = 1.5; fuelRodDec += 0.2; }
+  if (temperature > reactor.TBcritical) { reactor.temperatureText = "critical"; reactor.status = "critical"; reactor.containmentDomeDmgRate = 3; fuelRodDec += 0.2; }
+  if (temperature > reactor.TBmeltdown) {/*reactor.containmentDomeDmgRate = 100;*/ reactor.status = "meltdown"; meltdown(); }
+  reactor.fuelDecrease = fuelRodDec;
 }
 
-function saveUserData(code) {
-  // Save User object
-  let DATA = JSON.stringify(USER);
-  var CON = new XMLHttpRequest();
-  CON.open("POST", `php/saveUserData.php?token=666999&pass=1994&auth=${code}`);
-  CON.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-  CON.onload = () => {
-    //console.log(`<<<[!!] ${CON.responseText} >>>`);
-  }
-  CON.send(encodeURI(`json=${DATA}`));
+/** Save data */
+function saveProgress() {
+  socket.emit("save", data.user);
 }
 
-function _loadScreen(save, redoDmgDome, redoIncome, redoFuelDep) {
-  if (save == true) saveProgress();
-  if (redoDmgDome == true) dmgDome();
-  if (redoIncome == true) setIncome();
-  if (redoFuelDep == true) setFuelDep();
-  OPS();
+function _loadScreen(redoDmgDome, redoIncome, redoFuelDep) {
+  if (redoDmgDome) dmgDome();
+  if (redoIncome) setIncome();
+  if (redoFuelDep) setFuelDep();
+  simulateReactor();
+  saveProgress();
   playSound();
-  Body().setAttribute("status", REACTOR.status);
+  document.body.setAttribute("status", reactor.status);
 
   // status
-  for (var i of document.querySelectorAll(".status-text:not(.no)")) i.setAttribute("status", REACTOR.status), i.innerText = REACTOR.status;
-  for (var i of document.querySelectorAll(".status-light:not(.no)")) i.setAttribute("status", REACTOR.status), i.setAttribute("size", "tiny");
-  qs("[i='status-text']").setAttribute("status", REACTOR.status);
-  qs("[i='status-text']").innerText = REACTOR.status;
-  qs("[i='status-light']").setAttribute("status", REACTOR.status);
-  ID("alarm-status-text").setAttribute("state", REACTOR.alarmStatus);
-  ID("alarm-status-text").innerText = `Alarms: ${REACTOR.alarmStatus}`;
-  ID("alarm-status-light").setAttribute("state", REACTOR.alarmStatus);
+  for (let i of document.querySelectorAll(".status-text:not(.no)")) { i.setAttribute("status", reactor.status); i.innerText = reactor.status; }
+  for (let i of document.querySelectorAll(".status-light:not(.no)")) { i.setAttribute("status", reactor.status); i.setAttribute("size", "tiny"); }
+  document.querySelector("[i='status-text']").setAttribute("status", reactor.status);
+  document.querySelector("[i='status-text']").innerText = reactor.status;
+  document.querySelector("[i='status-light']").setAttribute("status", reactor.status);
+  document.getElementById("alarm-status-text").setAttribute("state", reactor.alarmStatus);
+  document.getElementById("alarm-status-text").innerText = `Alarms: ${reactor.alarmStatus}`;
+  document.getElementById("alarm-status-light").setAttribute("state", reactor.alarmStatus);
   // Core temperature
-  ID("temp-text-level").setAttribute("temp", REACTOR.temperatureText);
-  ID("temp-text-level").innerText = REACTOR.temperatureText;
-  ID("temp-bar-1").setAttribute("temp", REACTOR.temperatureText);
-  qs("[i='temp-bar-fg']").setAttribute("temp", REACTOR.temperatureText);
-  var temp_bar_width = ((num(REACTOR.temperatureNumber) / num(REACTOR.TBalert)) * 100).toFixed(2);
+  document.getElementById("temp-text-level").setAttribute("temp", reactor.temperatureText);
+  document.getElementById("temp-text-level").innerText = reactor.temperatureText;
+  document.getElementById("temp-bar-1").setAttribute("temp", reactor.temperatureText);
+  document.querySelector("[i='temp-bar-fg']").setAttribute("temp", reactor.temperatureText);
+  var temp_bar_width = ((reactor.temperatureNumber / reactor.TBalert) * 100).toFixed(2);
   if (temp_bar_width > 100) { temp_bar_width = 100; }
-  qs("[i='temp-bar-fg']").setAttribute("style", `width:${temp_bar_width}%`)
-  ID("temp-text-int").setAttribute("temp", REACTOR.temperatureNumber);
-  ID("temp-text-int").innerHTML = `${comma(REACTOR.temperatureNumber)}C <small>(max ${REACTOR.TBwarning}C)</small>`;
+  document.querySelector("[i='temp-bar-fg']").setAttribute("style", `width:${temp_bar_width}%`)
+  document.getElementById("temp-text-int").setAttribute("temp", reactor.temperatureNumber);
+  document.getElementById("temp-text-int").innerHTML = `${comma(reactor.temperatureNumber)}C <small>(max ${reactor.TBwarning}C)</small>`;
   // Containment Dome
-  ID("containment-status").setAttribute("status", REACTOR.containmentDomeStatus);
-  ID("containment-status").innerText = REACTOR.containmentDomeStatus;
-  ID("containment-light").setAttribute("status", REACTOR.containmentDomeStatus);
-  ID("containment-meter").setAttribute("value", REACTOR.containmentDome);
-  ID("containment-percent").innerText = `${num(REACTOR.containmentDome).toFixed(1)}%`;
-  ID("containment-dmg-r8").innerText = `${num(REACTOR.containmentDomeDmgRate).toFixed(1)}%`;
+  document.getElementById("containment-status").setAttribute("status", reactor.containmentDomeStatus);
+  document.getElementById("containment-status").innerText = reactor.containmentDomeStatus;
+  document.getElementById("containment-light").setAttribute("status", reactor.containmentDomeStatus);
+  document.getElementById("containment-meter").setAttribute("value", reactor.containmentDome);
+  document.getElementById("containment-percent").innerText = `${reactor.containmentDome.toFixed(1)}%`;
+  document.getElementById("containment-dmg-r8").innerText = `${reactor.containmentDomeDmgRate.toFixed(1)}%`;
   // Control rods
-  ID("control-rods-meter").setAttribute("value", REACTOR.controlRods);
-  ID("control-rods-percent").innerText = `${REACTOR.controlRods}%`;
+  document.getElementById("control-rods-meter").setAttribute("value", reactor.controlRods);
+  document.getElementById("control-rods-percent").innerText = `${reactor.controlRods}%`;
   // Fuel Rods
-  ID("fuel-life-text").innerText = `${num(REACTOR.fuel).toFixed(1)}%`;
-  ID("fuel-life-meter").innerHTML = `<meter min='0' max='100' low="20" high="60" optimum="100" value='${REACTOR.fuel}' class='liquid-meter'></meter>`;
-  ID("replace-fuel-cost").innerText = `£${comma(REACTOR.replaceFuelCost)}`;
-  ID("fuel-dec-rate").innerText = `${REACTOR.fuelDecrease} %`;
+  document.getElementById("fuel-life-text").innerText = `${num(reactor.fuel).toFixed(1)}%`;
+  document.getElementById("fuel-life-meter").innerHTML = `<meter min='0' max='100' low="20" high="60" optimum="100" value='${reactor.fuel}' class='liquid-meter'></meter>`;
+  document.getElementById("replace-fuel-cost").innerText = `£${comma(reactor.replaceFuelCost)}`;
+  document.getElementById("fuel-dec-rate").innerText = `${reactor.fuelDecrease} %`;
   // Coolant pumps
-  ID("coolant-pumps-meter").setAttribute("value", REACTOR.coolantPumps);
-  ID("coolant-pumps-percent").innerText = `${REACTOR.coolantPumps}%`;
+  document.getElementById("coolant-pumps-meter").setAttribute("value", reactor.coolantPumps);
+  document.getElementById("coolant-pumps-percent").innerText = `${reactor.coolantPumps}%`;
   // Steam pressure
-  ID("steam-pressure-psi-text").innerText = `${comma(Math.round(REACTOR.steamPressure))} psi`;
+  document.getElementById("steam-pressure-psi-text").innerText = `${comma(Math.round(reactor.steamPressure))} psi`;
   // Turbine
-  ID("turbine-rpm-text-1").innerText = `${comma(Math.round(num(REACTOR.turbineRPM) / num(REACTOR.numberOfTurbines)))} rpm`;
-  ID("turbine-rpm-text-all").innerText = `${comma(Math.round(REACTOR.turbineRPM))} rpm`;
+  document.getElementById("turbine-rpm-text-1").innerText = `${comma(Math.round(reactor.turbineRPM / reactor.numberOfTurbines))} rpm`;
+  document.getElementById("turbine-rpm-text-all").innerText = `${comma(Math.round(reactor.turbineRPM))} rpm`;
   // Generator
-  ID("generator-output-1").innerText = `${comma(Math.round(num(REACTOR.powerOutput) / num(REACTOR.numberOfGenerators)))} mW`;
-  ID("generator-output-all").innerText = `${comma(Math.round(REACTOR.powerOutput))} mW`;
+  document.getElementById("generator-output-1").innerText = `${comma(Math.round(reactor.powerOutput / reactor.numberOfGenerators))} mW`;
+  document.getElementById("generator-output-all").innerText = `${comma(Math.round(reactor.powerOutput))} mW`;
   // Demand
-  ID("reactor-baseload").innerText = REACTOR.baseload;
-  ID("meeting-demand").setAttribute("val", REACTOR.meetingDemand);
-  ID("meeting-demand").innerText = REACTOR.meetingDemand;
-  ID("meeting-demand-light").setAttribute("val", REACTOR.meetingDemand);
-  ID("demand-bound").innerText = `${REACTOR.demandLB} - ${REACTOR.demandUB}`;
-  if (REACTOR.meetingDemand == "yes") { ID("demand-bonus").innerHTML = `income &times; ${REACTOR.demandRewardBoost}`; } else { ID("demand-bonus").innerHTML = `-`; }
-  if (num(REACTOR.oldDemand) > num(REACTOR.demandLB)) {
-    ID("demand-inc-dec").innerHTML = `<DEC>&#9660; DEC ${((num(REACTOR.oldDemand) - num(REACTOR.demandLB)) / num(REACTOR.oldDemand)).toFixed(2)}%</DEC>`;
-  } else if (num(REACTOR.oldDemand) < num(REACTOR.demandLB)) {
-    ID("demand-inc-dec").innerHTML = `<INC>&#9650; INC ${((num(REACTOR.demandLB) - num(REACTOR.oldDemand)) / num(REACTOR.oldDemand)).toFixed(2)}%</INC>`;
-  } else if (num(REACTOR.oldDemand) == num(REACTOR.demandLB)) {
-    dir = "EQU"; arrow = "&#9472;";
-    ID("demand-inc-dec").innerHTML = `<EQU>EQUAL</EQU>`;
+  document.getElementById("reactor-baseload").innerText = reactor.baseload;
+  document.getElementById("meeting-demand").setAttribute("val", reactor.meetingDemand);
+  document.getElementById("meeting-demand").innerText = reactor.meetingDemand;
+  document.getElementById("meeting-demand-light").setAttribute("val", reactor.meetingDemand);
+  document.getElementById("demand-bound").innerText = `${reactor.demandLB} - ${reactor.demandUB}`;
+  if (reactor.meetingDemand == "yes") { document.getElementById("demand-bonus").innerHTML = `income &times; ${reactor.demandRewardBoost}`; } else { document.getElementById("demand-bonus").innerHTML = `-`; }
+  if (reactor.oldDemand > reactor.demandLB) {
+    document.getElementById("demand-inc-dec").innerHTML = `<DEC>&#9660; DEC ${((reactor.oldDemand - reactor.demandLB) / reactor.oldDemand).toFixed(2)}%</DEC>`;
+  } else if (reactor.oldDemand < reactor.demandLB) {
+    document.getElementById("demand-inc-dec").innerHTML = `<INC>&#9650; INC ${((reactor.demandLB - reactor.oldDemand) / reactor.oldDemand).toFixed(2)}%</INC>`;
+  } else if (reactor.oldDemand == reactor.demandLB) {
+    dir = "EQU";
+    arrow = "&#9472;";
+    document.getElementById("demand-inc-dec").innerHTML = `<EQU>EQUAL</EQU>`;
   }
   // Grid
-  if (REACTOR.connectedToGrid == "yes") {
-    ID("grid-connected").innerText = 'Connected to Grid';
-    ID("grid-connected").setAttribute("state", "on")
-    ID("grid-connected-light").setAttribute("state", "on")
-  } else if (REACTOR.connectedToGrid == "no") {
-    ID("grid-connected").innerText = 'Disconnected from Grid';
-    ID("grid-connected").setAttribute("state", "off")
-    ID("grid-connected-light").setAttribute("state", "off")
+  if (reactor.connectedToGrid) {
+    document.getElementById("grid-connected").innerText = 'Connected to Grid';
+    document.getElementById("grid-connected").setAttribute("state", "on");
+    document.getElementById("grid-connected-light").setAttribute("state", "on");
+  } else {
+    document.getElementById("grid-connected").innerText = 'Disconnected from Grid';
+    document.getElementById("grid-connected").setAttribute("state", "off");
+    document.getElementById("grid-connected-light").setAttribute("state", "off");
   }
   // Income
-  ID("income-text").innerText = `£ ${comma(REACTOR.income)}`;
-  ID("income-per-MWH").innerText = `£ ${REACTOR.incomePerMWH}`;
-  ID("offline-income-text").innerText = `£ ${comma(Math.round((num(REACTOR.income) / 50) * num(USER.offline_income_mult)))}`;
+  document.getElementById("income-text").innerText = `£ ${comma(reactor.income)}`;
+  document.getElementById("income-per-MWH").innerText = `£ ${reactor.incomePerMWH}`;
+  document.getElementById("offline-income-text").innerText = `£ ${comma(Math.round((reactor.income / 50) * data.user.offline_income_mult))}`;
   // Money to collect
-  ID("collect-money").innerText = `£ ${comma(REACTOR.moneyGenerated)}`;
-  ID("stats-money-generated").innerText = `£ ${comma(REACTOR.totalMoneyGenerated)}`;
+  document.getElementById("collect-money").innerText = `£ ${comma(reactor.moneyGenerated)}`;
+  document.getElementById("stats-money-generated").innerText = `£ ${comma(reactor.totalMoneyGenerated)}`;
   // repair Costs#
-  ID("repair-dome-cost").innerText = "£" + comma(REACTOR.REPAIR_containmentDomeCost);
+  document.getElementById("repair-dome-cost").innerText = "£" + comma(reactor.REPAIR_containmentDomeCost);
   // Containment dome upgrade
-  ID("containment-current-level").innerText = REACTOR.containmentDomeLvl;
-  ID("containment-next-level").innerText = num(REACTOR.containmentDomeLvl) + 1;
-  ID("containment-upgrade-cost").innerText = comma(REACTOR.containmentDomeUpgradeCost);
+  document.getElementById("containment-current-level").innerText = reactor.containmentDomeLvl;
+  document.getElementById("containment-next-level").innerText = reactor.containmentDomeLvl + 1;
+  document.getElementById("containment-upgrade-cost").innerText = comma(reactor.containmentDomeUpgradeCost);
   // Generator upgrade
-  ID("generator-mult").innerText = `${(num(REACTOR.generatorMult) + 0.1).toFixed(1)}`;
-  ID("generator-current-level").innerHTML = `${REACTOR.generatorLvl} (&times;${REACTOR.generatorMult})`;
-  ID("generator-next-level").innerHTML = `${num(REACTOR.generatorLvl) + 1} (&times;${(num(REACTOR.generatorMult) + 0.1).toFixed(1)})`;
-  ID("generator-upgrade-cost").innerText = comma(REACTOR.generatorUpgradeCost);
+  document.getElementById("generator-mult").innerText = `${(reactor.generatorMult + 0.1).toFixed(1)}`;
+  document.getElementById("generator-current-level").innerHTML = `${reactor.generatorLvl} (&times;${reactor.generatorMult})`;
+  document.getElementById("generator-next-level").innerHTML = `${reactor.generatorLvl + 1} (&times;${(reactor.generatorMult + 0.1).toFixed(1)})`;
+  document.getElementById("generator-upgrade-cost").innerText = comma(reactor.generatorUpgradeCost);
   // Turbine upgrade
-  ID("turbine-mult").innerText = `${(num(REACTOR.turbineRPMMult) + 0.1).toFixed(1)}`;
-  ID("turbine-current-level").innerHTML = `${REACTOR.turbineLvl} (&times;${REACTOR.turbineRPMMult})`;
-  ID("turbine-next-level").innerHTML = `${num(REACTOR.turbineLvl) + 1} (&times;${(num(REACTOR.turbineRPMMult) + 0.1).toFixed(1)})`;
-  ID("turbine-upgrade-cost").innerText = comma(REACTOR.turbineUpgradeCost);
+  document.getElementById("turbine-mult").innerText = `${(reactor.turbineRPMMult + 0.1).toFixed(1)}`;
+  document.getElementById("turbine-current-level").innerHTML = `${reactor.turbineLvl} (&times;${reactor.turbineRPMMult})`;
+  document.getElementById("turbine-next-level").innerHTML = `${reactor.turbineLvl + 1} (&times;${(reactor.turbineRPMMult + 0.1).toFixed(1)})`;
+  document.getElementById("turbine-upgrade-cost").innerText = comma(reactor.turbineUpgradeCost);
   // Steam upgrade
-  ID("steam-mult").innerText = `${(num(REACTOR.steamPressureMult) + 0.05).toFixed(2)}`;
-  ID("steam-current-level").innerHTML = `${REACTOR.steamPressureLvl} (&times;${REACTOR.steamPressureMult})`;
-  ID("steam-next-level").innerHTML = `${num(REACTOR.steamPressureLvl) + 1} (&times;${(num(REACTOR.steamPressureMult) + 0.05).toFixed(2)})`;
-  ID("steam-upgrade-cost").innerText = comma(REACTOR.steamPressureUpgradeCost);
+  document.getElementById("steam-mult").innerText = `${(reactor.steamPressureMult + 0.05).toFixed(2)}`;
+  document.getElementById("steam-current-level").innerHTML = `${reactor.steamPressureLvl} (&times;${reactor.steamPressureMult})`;
+  document.getElementById("steam-next-level").innerHTML = `${reactor.steamPressureLvl + 1} (&times;${(reactor.steamPressureMult + 0.05).toFixed(2)})`;
+  document.getElementById("steam-upgrade-cost").innerText = comma(reactor.steamPressureUpgradeCost);
   // Reactor size upgrade
-  ID("reactor-size-inc-how-many1").innerText = REACTOR.reactorSizeIncHowMany;
-  ID("reactor-size-inc-how-many2").innerText = REACTOR.reactorSizeIncHowMany;
-  ID("reactor-size-current-level").innerText = REACTOR.reactorSize;
-  ID("reactor-size-next-level").innerText = num(REACTOR.reactorSize) + 1;
-  ID("reactor-size-upgrade-cost").innerText = comma(REACTOR.reactorSizeUpgradeCost);
+  document.getElementById("reactor-size-inc-how-many1").innerText = reactor.reactorSizeIncHowMany;
+  document.getElementById("reactor-size-inc-how-many2").innerText = reactor.reactorSizeIncHowMany;
+  document.getElementById("reactor-size-current-level").innerText = reactor.reactorSize;
+  document.getElementById("reactor-size-next-level").innerText = reactor.reactorSize + 1;
+  document.getElementById("reactor-size-upgrade-cost").innerText = comma(reactor.reactorSizeUpgradeCost);
   // Fuel rod upgrade
-  ID("fuel-rod-current-life").innerText = `${REACTOR.rFuelDecrease} %`;
-  ID("fuel-rod-next-life").innerText = `${(num(REACTOR.rFuelDecrease) - 0.1).toFixed(1)} %`;
-  ID("fuel-life-upgrade-cost").innerText = comma(REACTOR.fuelRodLifeUpgradeCost);
+  document.getElementById("fuel-rod-current-life").innerText = `${reactor.rFuelDecrease} %`;
+  document.getElementById("fuel-rod-next-life").innerText = `${(reactor.rFuelDecrease - 0.1).toFixed(1)} %`;
+  document.getElementById("fuel-life-upgrade-cost").innerText = comma(reactor.fuelRodLifeUpgradeCost);
   // Extend info box
-  ID("info-reactor-size").innerText = REACTOR.reactorSize;
-  ID("info-turbine-support").innerText = REACTOR.howManyTurbinesSupport;
-  ID("info-generator-support").innerText = REACTOR.howManyGeneratorsSupport;
+  document.getElementById("info-reactor-size").innerText = reactor.reactorSize;
+  document.getElementById("info-turbine-support").innerText = reactor.howManyTurbinesSupport;
+  document.getElementById("info-generator-support").innerText = reactor.howManyGeneratorsSupport;
   // Build turbine
-  ID("current-no-turbines").innerText = REACTOR.numberOfTurbines;
-  ID("turbine-cost").innerText = "£" + comma(REACTOR.buildTurbineCost);
+  document.getElementById("current-no-turbines").innerText = reactor.numberOfTurbines;
+  document.getElementById("turbine-cost").innerText = "£" + comma(reactor.buildTurbineCost);
   // Build Generators
-  ID("current-no-generators").innerText = REACTOR.numberOfGenerators;
-  ID("generator-cost").innerText = `£${comma(REACTOR.buildGeneratorCost)}`;
+  document.getElementById("current-no-generators").innerText = reactor.numberOfGenerators;
+  document.getElementById("generator-cost").innerText = `£${comma(reactor.buildGeneratorCost)}`;
   // Time
   updateTime();
 }
 
+/** Control the control rods */
 function controlRods(action) {
-  let current = num(REACTOR.controlRods);
-  if (action == "raise") {
-    let NEW = current + 1;
-    100 < NEW ? null : (REACTOR.controlRods = num(REACTOR.controlRods) + 1, _loadScreen(!0));
-  } else if (action == "lower") {
-    let NEW = current - 1;
-    0 > NEW ? null : (REACTOR.controlRods = num(REACTOR.controlRods) - 1, _loadScreen(!0));
-  } else if (action.match("TO")) {
-    REACTOR.controlRods = action.replace("TO:", "");
-    _loadScreen(true);
+  let old = reactor.controlRods;
+  if (action === "raise") {
+    if (reactor.controlRods < 100) reactor.controlRods++;
+  } else if (action === "lower") {
+    if (reactor.controlRods > 0) reactor.controlRods--;
+  } else if (action.startsWith("TO:")) {
+    reactor.controlRods = +action.substring(3);
+  }
+  if (reactor.controlRods !== old) {
+    _loadScreen();
   }
 }
 
 function coolantPumps(action) {
-  let current = num(REACTOR.coolantPumps);
-  if (action == "INC") {
-    let NEW = current + 1;
-    100 < NEW ? null : (REACTOR.coolantPumps = num(REACTOR.coolantPumps) + 1, _loadScreen(!0));
-  } else if (action == "DEC") {
-    let NEW = current - 1;
-    0 > NEW ? null : (REACTOR.coolantPumps = num(REACTOR.coolantPumps) - 1, _loadScreen(!0));
-  } else if (action.match("TO")) {
-    REACTOR.coolantPumps = action.replace("TO:", "");
-    _loadScreen(true);
+  let old = reactor.coolantPumps;
+  if (action === "inc") {
+    if (reactor.coolantPumps < 100) reactor.coolantPumps++;
+  } else if (action === "dec") {
+    if (reactor.coolantPumps > 0) reactor.coolantPumps--;
+  } else if (action.startsWith("TO:")) {
+    reactor.coolantPumps = +action.substring(3);
+  }
+  if (reactor.coolantPumps !== old) {
+    _loadScreen();
   }
 }
 
-function changeGrid(to) {
-  "yes" == to && (REACTOR.connectedToGrid = "yes");
-  "no" == to && (REACTOR.connectedToGrid = "no");
-  _loadScreen(true);
+function connectToGrid(bool) {
+  reactor.connectToGrid = bool;
+  _loadScreen();
 }
 
+// TODO
 function upgrade(item, cost) {
+  return displayMessage("Coming Soon", "This feature is still under development");
+
   // Check if any of the levels are above the max
   let max, lvl;
   switch (item) {
@@ -471,7 +546,7 @@ function upgrade(item, cost) {
           REACTOR.fuelRodLifeUpgradeCost = num(REACTOR.fuelRodLifeUpgradeCost) * 2;
           break;
       }
-      _loadScreen(true);
+      _loadScreen();
     } else {
       displayMessage("Unable to Upgrade Item", con.responseText);
     }
@@ -479,7 +554,10 @@ function upgrade(item, cost) {
   con.send();
 }
 
+// TODO
 function build(item, cost) {
+  return displayMessage("Coming Soon", "This feature is still under development");
+  
   // Check if they are over the max limit
   if (item == "turbine") {
     if ((num(REACTOR.numberOfTurbines) + 1) > num(REACTOR.howManyTurbinesSupport)) {
@@ -507,42 +585,32 @@ function build(item, cost) {
           REACTOR.buildGeneratorCost = num(REACTOR.buildGeneratorCost) * 2;
           break;
       }
-      _loadScreen(true);
+      _loadScreen();
     } else {
       displayMessage("Unable to Build Item", con.responseText);
     }
   }
   con.send();
 }
-function calculateOfflineIncome(oldTime, newTime) {
-  const difference = Math.round((newTime - oldTime) / 1e3);
-  let fancy = fancyTimer(difference);
-  const incomePerS = num(REACTOR.income);
-  const raw_income = difference * incomePerS;
-  const income = Math.round((raw_income / 50) * num(USER.offline_income_mult));
-  displayMessage("Offline Earnings", `You were offline for ${fancy}, and this unit generated £${comma(income)} whilst you were away`);
-  REACTOR.moneyGenerated = num(REACTOR.moneyGenerated) + num(income);
-  REACTOR.totalMoneyGenerated = num(REACTOR.totalMoneyGenerated) + num(income);
-  _loadScreen(true);
-}
+
+/** Advance simulation time */
 function moveTime() {
   // Add one to hour (time)
-  if (23 < num(USER.time) + 1) {
-    USER.dayOfMonth = num(USER.dayOfMonth) + 1, USER.day = num(USER.day) + 1, USER.time = 0;
+  if (23 < num(data.user.time) + 1) {
+    data.user.dayOfMonth = num(data.user.dayOfMonth) + 1, data.user.day = num(data.user.day) + 1, data.user.time = 0;
     editDemand(1);
     let R = random(1, 2);
-    console.log(`NUMBER: ${R} (${R == 2})`)
     R == 2 && editDemand(2);
-  } else { USER.time = num(USER.time) + 1; editDemand(1); }
-  // Check if USER.day > 6 - Sunday ===> (reset back to 0 - Mon)
-  if (6 < num(USER.day)) USER.day = 0;
+  } else { data.user.time = num(data.user.time) + 1; editDemand(1); }
+  // Check if data.user.day > 6 - Sunday ===> (reset back to 0 - Mon)
+  if (6 < num(data.user.day)) data.user.day = 0;
   // Check if too many days in month
-  let maxDays = maxDaysOfMonths[USER.month];
-  num(USER.dayOfMonth) > maxDays && (USER.month = num(USER.month) + 1, USER.dayOfMonth = 1);
+  let maxDays = maxDaysOfMonths[data.user.month];
+  num(data.user.dayOfMonth) > maxDays && (data.user.month = num(data.user.month) + 1, data.user.dayOfMonth = 1);
   // If months > 11 (december), reset do Jan
-  11 < num(USER.month) && (USER.month = 0);
+  11 < num(data.user.month) && (data.user.month = 0);
   // Time of day
-  let time = num(USER.time); var t;
+  let time = num(data.user.time); var t;
   if (time == 0) t = "midnight";
   if (time >= 1) t = "night";
   if (time >= 4) t = "twilight";
@@ -552,52 +620,40 @@ function moveTime() {
   if (time >= 17) t = "evening";
   if (time >= 20) t = "twilight";
   if (time >= 22) t = "night";
-  USER.timeOfDay = t;
-  saveUserData(4447);
+  data.user.timeOfDay = t;
+  saveProgress();
   updateTime();
 }
+
+/** Update time display */
 function updateTime() {
-  ID("time-text").innerHTML = `${days[USER.day]} ${USER.dayOfMonth} of ${months[USER.month]} - ${USER.time}:00 [${USER.timeOfDay}]`;
-  ID("stats-time-text").innerHTML = `${days[USER.day]} ${USER.dayOfMonth} of ${months[USER.month]} - ${USER.time}:00 [${USER.timeOfDay}]`;
+  document.getElementById("time-text").innerHTML = `${days[data.user.day]} ${data.user.dayOfMonth} of ${months[data.user.month]} - ${data.user.time}:00 [${data.user.timeOfDay}]`;
+  document.getElementById("stats-time-text").innerHTML = `${days[data.user.day]} ${data.user.dayOfMonth} of ${months[data.user.month]} - ${data.user.time}:00 [${data.user.timeOfDay}]`;
 }
+
+/** Edit demand according to the provided type: 1/2 */
 function editDemand(type) {
   if (type == 1) {
     // add/minus time-of-day demand fract.
-    let P = timeOfDayValues[USER.timeOfDay];
-    //console.log(`Time of Day Factor: ${P}`);
-    REACTOR.demandLB = (num(REACTOR.demandLB) * P).toFixed(1);
-    REACTOR.demandUB = (num(REACTOR.demandLB) * P).toFixed(1);
-    _loadScreen(true);
+    let P = timeOfDayValues[data.user.timeOfDay];
+    reactor.demandLB = +(reactor.demandLB * P).toFixed(1);
+    reactor.demandUB = +(reactor.demandLB * P).toFixed(1);
+    _loadScreen();
   } else if (type == 2) {
     // Redo whole demand
-    REACTOR.oldDemand = REACTOR.demandLB;
-    console.warn("Editing Demand");
-    const rnd = random(1, 2);
+    reactor.oldDemand = reactor.demandLB;
+    let rnd = random(1, 2), demandText, demandNum;
     if (rnd == 1) {
-      var demandText = choice(availableWeather[months[USER.month]]);
-      var demandNum = weatherValues[demandText];
+      demandText = choice(availableWeather[months[data.user.month]]);
+      demandNum = weatherValues[demandText];
     } else if (rnd == 2) {
-      var demandText = choice(randomEvents);
-      var demandNum = randomEventsValues[demandText];
+      demandText = choice(randomEvents);
+      demandNum = randomEventsValues[demandText];
     }
-    REACTOR.demandText = demandText;
-    REACTOR.demandLB = Math.round(num(REACTOR.baseload) * demandNum);
-    REACTOR.demandUB = Math.round((num(REACTOR.baseload) * demandNum) * 1.05);
-    //console.log(`Main Event Factor: ${demandNum}`)
-    _loadScreen(true);
-    displayMessage("Demand Change", `The demand changed due to the following reason(s): <code>${REACTOR.demandText}</code>.`)
+    reactor.demandText = demandText;
+    reactor.demandLB = Math.round(+reactor.baseload * demandNum);
+    reactor.demandUB = Math.round((+reactor.baseload * demandNum) * 1.05);
+    _loadScreen();
+    // displayMessage("Demand Change", `The demand changed due to the following reason(s): <code>${REACTOR.demandText}</code>.`)
   }
-}
-
-Body().setAttribute("status", REACTOR.status);
-_loadScreen(), dmgDome(), setIncome(), setFuelDep(), editDemand(2);
-if (MOVE_TIME == true) setInterval(moveTime, MOVE_TIME_EVERY);
-
-// If user registered as offline - sort out income
-if (REACTOR.offline == "yes") {
-  let nowD = new Date,
-    now = num(nowD.getTime());
-  calculateOfflineIncome(num(REACTOR.lastOnline), now);
-  REACTOR.offline = "no";
-  REACTOR.lastOnline = 0;
 }

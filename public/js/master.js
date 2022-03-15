@@ -1,7 +1,7 @@
 const DEFAULT_CANCEL_TIME = 1000;
 const LOADING_BAR_DELAY = 1000;
 
-(async function initSound() {
+async function initSound() {
   await Sounds.create("buzzer", "sounds/buzzer.mp3");
   await Sounds.create("buzzer_alarm", "sounds/buzzer.mp3");
   Sounds.get("buzzer_alarm").loop(true);
@@ -15,13 +15,6 @@ const LOADING_BAR_DELAY = 1000;
   await Sounds.create("beep-alarm", "sounds/beep.mp3");
   Sounds.get("beep-alarm").loop(true);
   await Sounds.create("cash", "sounds/cash.mp3");
-})();
-
-function getReactorStat(REACTOR, STAT) {
-  var CON = new XMLHttpRequest();
-  CON.open("GET", `php/getStat.php?token=4447&type=reactors&spec=${REACTOR}&stat=${STAT}`);
-  CON.onload = () => { }
-  CON.send();
 }
 
 function styleFuel(ELEMENT, VALUE, ATTR) {
@@ -105,6 +98,7 @@ function displayMessage(title, text) {
 
 function fancyTimer(seconds) {
   seconds = Number(seconds);
+  if (seconds === 0) return '0 seconds';
   var d = Math.floor(seconds / (3600 * 24));
   var h = Math.floor(seconds % (3600 * 24) / 3600);
   var m = Math.floor(seconds % 3600 / 60);
@@ -137,4 +131,14 @@ function random(min = 0, max = 1) {
 }
 function numformat(n) {
   return n.toLocaleString("en-GB");
+}
+
+function getDomeStatus(health) {
+  let status;
+  if (health < 100) { status = "good"; }
+  if (health < 30) { status = "warning"; }
+  if (health < 10) { status = "alert"; }
+  if (health < 5) { status = "critical"; }
+  if (health < 1) { status = "meltdown"; }
+  return status;
 }

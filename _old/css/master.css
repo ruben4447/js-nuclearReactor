@@ -13,10 +13,11 @@ body {
 }
 .interface, .display { background: #3B3F4C; }
 footer {
+  background: pink;
 	position: sticky;
-	top: 94%;
+	top: 90%;
   left: 0;
-	height: 5%;
+	height: 9.5%;
 	width: 99vw;
 	background: #333641;
 	border-top: 2px solid antiquewhite;

@@ -109,7 +109,47 @@ class UserPageConnection extends Connection {
   }
 }
 
+// For view.html
+class ReactorPageConnection extends Connection {
+  constructor(socket, data, submitAuthOnInit = true) {
+    super(socket, data, submitAuthOnInit);
+    this._init();
+  }
+
+  reactor() {
+    return this.data.user.reactors[this.data.reactor];
+  }
+
+  _init() {
+    const reactor = this.reactor();
+    // Reactor is now online
+    reactor.offline = false;
+
+    // Handle offline income
+    const difference = Math.round((Date.now() - reactor.lastOnline) / 1e3);
+    if (difference > 0) {
+      const income = Math.round((difference * reactor.income / 50) * this.data.user.offline_income_mult);
+      reactor.moneyGenerated += income;
+      reactor.totalMoneyGenerated += income;
+      this.socket.emit("offline-earnings", { time: difference, income });
+    }
+
+    this.socket.on("disconnect", async () => {
+      const reactor = this.reactor();
+      reactor.offline = true;
+      reactor.lastOnline = Date.now();
+      await this.updateUserDataFile();
+    });
+
+    // Save data
+    this.socket.on("save", async data => {
+      this.data.user = data;
+    });
+  }
+}
+
 module.exports = {
   MainPageConnection,
   UserPageConnection,
+  ReactorPageConnection,
 };
