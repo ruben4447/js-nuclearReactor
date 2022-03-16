@@ -8,7 +8,7 @@ async function readJson(filename) {
 }
 
 async function writeJson(filename, obj) {
-  return new Promise(res => fs.writeFile(path.join("data", filename), JSON.stringify(obj), () => res()));
+  return new Promise(res => fs.writeFile(path.join("data", filename), JSON.stringify(obj, undefined, '  '), () => res()));
 }
 
 async function delFile(filename) {

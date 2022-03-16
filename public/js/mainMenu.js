@@ -56,17 +56,17 @@ function main() {
   const tbody = document.getElementById("reactor-tbody");
   tbody.innerHTML = "";
   for (let name in data.user.reactors) {
-    let tr = document.createElement("tr"), td;
+    let tr = document.createElement("tr"), td, meltedDown = data.user.reactors[name].meltedDown;
     tbody.appendChild(tr);
     tr.insertAdjacentHTML("beforeend", `<td>${name}</td>`);
 
     td = document.createElement("td");
-    link = document.createElement("a");
+    link = document.createElement(meltedDown ? "em" : "a");
     td.appendChild(link);
     tr.appendChild(td);
-    if (data.user.reactors[name.meltedDown]) {
+    if (meltedDown) {
       link.href = "javascript:void(0)";
-      link.innerHTML = "<em>Melted Down</em>";
+      link.innerText = "Melted Down";
     } else {
       link.innerText = "Controls";
       link.href = `/view.html?${data.token}&reactor=${name}`;

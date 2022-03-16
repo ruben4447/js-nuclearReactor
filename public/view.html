@@ -344,7 +344,7 @@
                   <td class="big-text next-level" id="containment-next-level"></td>
                 </tr>
                 <tr>
-                  <td colspan="2"><button onclick="upgrade('containment_dome', num(REACTOR.containmentDomeUpgradeCost))">Upgrade for £<span money id="containment-upgrade-cost"></span></button></td>
+                  <td colspan="2"><button id="btn-upgrade-containmentDome">Upgrade for £<span money id="containment-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -365,7 +365,7 @@
                   <td class="big-text next-level" id="reactor-size-next-level"></td>
                 </tr>
                 <tr>
-                  <td colspan="2"><button onclick="upgrade('reactor_size', num(REACTOR.reactorSizeUpgradeCost))">Upgrade for £<span money id="reactor-size-upgrade-cost"></span></button></td>
+                  <td colspan="2"><button id="btn-upgrade-reactorSize">Upgrade for £<span money id="reactor-size-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -388,7 +388,7 @@
                   <td class="big-text next-level" id="steam-next-level"></td>
                 </tr>
                 <tr>
-                  <td colspan="2"><button onclick="upgrade('steam', num(REACTOR.steamUpgradeCost))">Upgrade for £<span money id="steam-upgrade-cost"></span></button></td>
+                  <td colspan="2"><button id="btn-upgrade-steam">Upgrade for £<span money id="steam-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -411,7 +411,7 @@
                   <td>/10sec</td>
                 </tr>
                 <tr>
-                  <td colspan="3"><button onclick="upgrade('fuel_rods', num(REACTOR.fuelRodLifeUpgradeCost))">Upgrade for £<span money id="fuel-life-upgrade-cost"></span></button></td>
+                  <td colspan="3"><button id="btn-upgrade-fuelRods">Upgrade for £<span money id="fuel-life-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -434,7 +434,7 @@
                   <td class="big-text next-level" id="generator-next-level"></td>
                 </tr>
                 <tr>
-                  <td colspan="2"><button onclick="upgrade('generator', num(REACTOR.generatorUpgradeCost))">Upgrade for £<span money id="generator-upgrade-cost"></span></button></td>
+                  <td colspan="2"><button id="btn-upgrade-generator">Upgrade for £<span money id="generator-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -455,7 +455,7 @@
                   <td class="big-text next-level" id="turbine-next-level"></td>
                 </tr>
                 <tr>
-                  <td colspan="2"><button onclick="upgrade('turbine', num(REACTOR.turbineUpgradeCost))">Upgrade for £<span money id="turbine-upgrade-cost"></span></button></td>
+                  <td colspan="2"><button id="btn-upgrade-turbine">Upgrade for £<span money id="turbine-upgrade-cost"></span></button></td>
                 </tr>
               </table>
             </td>
@@ -504,7 +504,7 @@
                   <td></td>
                 </tr>
                 <tr>
-                  <td colspan="3"><button onclick="build('turbine', num(REACTOR.buildTurbineCost))">Build Another Turbine</button></td>
+                  <td colspan="3"><button id="btn-build-turbine">Build Another Turbine</button></td>
                 </tr>
               </table>
             </td>
@@ -526,7 +526,7 @@
                   <td></td>
                 </tr>
                 <tr>
-                  <td colspan="3"><button onclick="build('generator', num(REACTOR.buildGeneratorCost))">Build Another Generator</button></td>
+                  <td colspan="3"><button id="btn-build-generator" onclick="build('generator', num(REACTOR.buildGeneratorCost))">Build Another Generator</button></td>
                 </tr>
               </table>
             </td>

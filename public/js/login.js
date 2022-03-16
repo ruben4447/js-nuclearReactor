@@ -12,8 +12,3 @@ window.addEventListener('load', () => {
     }
   });
 });
-
-/** TEMPORARY */
-document.getElementById("username").value = "test";
-document.getElementById("input").value = "123";
-document.getElementById("login").click();

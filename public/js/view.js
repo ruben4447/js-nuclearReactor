@@ -78,6 +78,14 @@ function main() {
     document.getElementById("btn-coolant-max").addEventListener("click", () => coolantPumps("TO:100"));
     document.getElementById("btn-grid-connect").addEventListener("click", () => socket.emit("connect-grid", true));
     document.getElementById("btn-grid-disconnect").addEventListener("click", () => socket.emit("connect-grid", false));
+    document.getElementById("btn-upgrade-containmentDome").addEventListener("click", () => upgrade('containment dome'));
+    document.getElementById("btn-upgrade-reactorSize").addEventListener("click", () => upgrade('reactor size'));
+    document.getElementById("btn-upgrade-steam").addEventListener("click", () => upgrade('steam'));
+    document.getElementById("btn-upgrade-fuelRods").addEventListener("click", () => upgrade('fuel rods'));
+    document.getElementById("btn-upgrade-generator").addEventListener("click", () => upgrade('generators'));
+    document.getElementById("btn-upgrade-turbine").addEventListener("click", () => upgrade('turbines'));
+    document.getElementById("btn-build-turbine").addEventListener("click", () => build('turbine'));
+    document.getElementById("btn-build-generator").addEventListener("click", () => build('generator'));
   }
 
   _loadScreen();
@@ -85,7 +93,6 @@ function main() {
   initial = false;
 }
 
-function num(a) { return +a; }
 window.meltdownFunc = false;
 
 function changePane(pane, caller) {
@@ -113,10 +120,10 @@ function meltdown() {
     document.querySelector(".meltdown-wrapper").setAttribute("stage", "two");
     setTimeout(() => {
       Sounds.stop("meltdown");
-      // reactor.meltedDown = true;
-      // saveProgress();
-      setTimeout(() => window.location.href = '/?' + data.token, 500);
-    }, 9000);
+      reactor.meltedDown = true;
+      saveProgress();
+      setTimeout(() => window.location.href = '/?' + data.token, 100);
+    }, 8000);
   }, 5000);
 }
 
@@ -288,7 +295,7 @@ function simulateReactor() {
       reactor.fuelDecrease = 0;
       return false;
     }
-    reactor.steamPressure = (temperature * 3) * num(reactor.steamPressureMult);
+    reactor.steamPressure = temperature * 3 * reactor.steamPressureMult;
     reactor.turbineRPM = reactor.steamPressure * 3 * reactor.turbineRPMMult * reactor.numberOfTurbines;
     reactor.powerOutput = +(((reactor.turbineRPM / 2) * reactor.generatorMult).toFixed(1)) * reactor.numberOfGenerators;
     if (reactor.connectedToGrid) {
@@ -360,7 +367,7 @@ function _loadScreen(redoDmgDome, redoIncome, redoFuelDep) {
   document.getElementById("control-rods-meter").setAttribute("value", reactor.controlRods);
   document.getElementById("control-rods-percent").innerText = `${reactor.controlRods}%`;
   // Fuel Rods
-  document.getElementById("fuel-life-text").innerText = `${num(reactor.fuel).toFixed(1)}%`;
+  document.getElementById("fuel-life-text").innerText = `${reactor.fuel.toFixed(1)}%`;
   document.getElementById("fuel-life-meter").innerHTML = `<meter min='0' max='100' low="20" high="60" optimum="100" value='${reactor.fuel}' class='liquid-meter'></meter>`;
   document.getElementById("replace-fuel-cost").innerText = `£${comma(reactor.replaceFuelCost)}`;
   document.getElementById("fuel-dec-rate").innerText = `${reactor.fuelDecrease} %`;
@@ -487,130 +494,149 @@ function connectToGrid(bool) {
   _loadScreen();
 }
 
-// TODO
-function upgrade(item, cost) {
-  return displayMessage("Coming Soon", "This feature is still under development");
-
-  // Check if any of the levels are above the max
-  let max, lvl;
+function upgrade(item) {
+  let cost, lvl, max, action;
   switch (item) {
-    case 'containment_dome': max = REACTOR.containmentDomeLvlLimit; lvl = REACTOR.containmentDomeLvl; break;
-    case 'generator': max = REACTOR.generatorLvlLimit; lvl = REACTOR.generatorLvl; break;
-    case 'turbine': max = REACTOR.turbineLvlLimit; lvl = REACTOR.turbineLvl; break;
-    case 'steam': max = REACTOR.steamLvlLimit; lvl = REACTOR.steamPressureLvl; break;
-    case 'reactor_size': max = REACTOR.reactorSizeLvlLimit; lvl = REACTOR.reactorSize; break;
-    case 'fuel_rods': max = REACTOR.fuelRodLifeLvlLimit; lvl = REACTOR.fuelRodLifeLvl; break;
-    default: return false; break;
+    case 'containment dome':
+      cost = reactor.containmentDomeUpgradeCost;
+      lvl = reactor.containmentDomeLvl;
+      max = reactor.containmentDomeLvlLimit;
+      action = () => {
+        reactor.containmentDomeLvl++;
+        reactor.containmentDomeUpgradeCost *= 2;
+        reactor.TBwarning += 120;
+        reactor.TBalert += 120;
+        reactor.TBcritical += 120;
+        reactor.TBmeltdown += 120;
+      };
+      break;
+    case 'reactor size':
+      cost = reactor.reactorSizeUpgradeCost;
+      lvl = reactor.reactorSize;
+      max = reactor.reactorSizeLvlLimit;
+      action = () => {
+        reactor.reactorSize++;
+        reactor.howManyTurbinesSupport += reactor.reactorSizeIncHowMany;
+        reactor.howManyGeneratorsSupport += reactor.reactorSizeIncHowMany;
+        reactor.reactorSizeUpgradeCost = Math.round(REACTOR.reactorSizeUpgradeCost * 2.5);
+      };
+      break;
+    case 'steam':
+      cost = reactor.steamUpgradeCost;
+      lvl = reactor.steamPressureLvl;
+      max = reactor.steamLvlLimit;
+      action = () => {
+        reactor.steamPressureLvl++;
+        reactor.steamPressureUpgradeCost *= 2;
+        reactor.steamPressureMult = +((reactor.steamPressureMult + 0.05).toFixed(1));
+      };
+      break;
+    case 'fuel rods':
+      cost = reactor.fuelRodLifeUpgradeCost;
+      lvl = reactor.fuelRodLifeLvl;
+      max = reactor.fuelRodLifeLvlLimit;
+      action = () => {
+        reactor.reactorSize++;
+        reactor.howManyTurbinesSupport += reactor.reactorSizeIncHowMany;
+        reactor.howManyGeneratorsSupport += reactor.reactorSizeIncHowMany;
+        reactor.reactorSizeUpgradeCost = Math.round(reactor.reactorSizeUpgradeCost * 2.5);
+      };
+      break;
+    case 'generators':
+      cost = reactor.generatorUpgradeCost;
+      lvl = reactor.generatorLvl;
+      max = reactor.generatorLvlLimit;
+      action = () => {
+        reactor.generatorLvl++;
+        reactor.generatorUpgradeCost *= 2;
+        reactor.generatorMult += 0.1;
+      };
+      break;
+    case 'turbines':
+      cost = reactor.turbineUpgradeCost;
+      lvl = reactor.turbineLvl;
+      max = reactor.turbineLvlLimit;
+      action = () => {
+        reactor.turbineLvl++;
+        reactor.turbineUpgradeCost *= 2;
+        reactor.turbineRPMMult += 0.1;
+      };
+      break;
   }
-  let nextLvl = num(lvl) + 1;
-  if (nextLvl > num(max)) { displayMessage("Unable to Upgrade Item", `Cannot upgrade ${item} as it is already max level [Level ${max}]`); return false; }
-  var con = new XMLHttpRequest();
-  con.open("GET", `php/money.php?token=666b&action=DEC&amount=${cost}`);
-  con.onload = () => {
-    if (con.responseText == "OK") {
-      switch (item) {
-        case 'containment_dome':
-          REACTOR.containmentDomeLvl = num(REACTOR.containmentDomeLvl) + 1;
-          REACTOR.containmentDomeUpgradeCost = num(REACTOR.containmentDomeUpgradeCost) * 2;
-          REACTOR.TBwarning = num(REACTOR.TBwarning) + 120;
-          REACTOR.TBalert = num(REACTOR.TBalert) + 120;
-          REACTOR.TBcritical = num(REACTOR.TBcritical) + 120;
-          REACTOR.TBmeltdown = num(REACTOR.TBmeltdown) + 120;
-          break;
-        case 'generator':
-          REACTOR.generatorLvl = num(REACTOR.generatorLvl) + 1;
-          REACTOR.generatorUpgradeCost = num(REACTOR.generatorUpgradeCost) * 2;
-          REACTOR.generatorMult = (num(REACTOR.generatorMult) + 0.1).toFixed(1);
-          break;
-        case 'turbine':
-          console.log("Upgrading turbine");
-          REACTOR.turbineLvl = num(REACTOR.turbineLvl) + 1;
-          REACTOR.turbineUpgradeCost = num(REACTOR.turbineUpgradeCost) * 2;
-          REACTOR.turbineRPMMult = (num(REACTOR.turbineRPMMult) + 0.1).toFixed(1);
-          break;
-        case 'steam':
-          console.log("Upgrading Steam")
-          REACTOR.steamPressureLvl = num(REACTOR.steamPressureLvl) + 1;
-          REACTOR.steamPressureUpgradeCost = num(REACTOR.steamPressureUpgradeCost) * 2;
-          REACTOR.steamPressureMult = (num(REACTOR.steamPressureMult) + 0.05).toFixed(1);
-          break;
-        case 'reactor_size':
-          REACTOR.reactorSize = num(REACTOR.reactorSize) + 1;
-          REACTOR.howManyTurbinesSupport = num(REACTOR.howManyTurbinesSupport) + num(REACTOR.reactorSizeIncHowMany);
-          REACTOR.howManyGeneratorsSupport = num(REACTOR.howManyGeneratorsSupport) + num(REACTOR.reactorSizeIncHowMany);
-          REACTOR.reactorSizeUpgradeCost = Math.round(num(REACTOR.reactorSizeUpgradeCost) * 2.5);
-          break;
-        case 'fuel_rods':
-          REACTOR.fuelRodLifeLvl = num(REACTOR.fuelRodLifeLvl) + 1;
-          REACTOR.rFuelDecrease = num(num(REACTOR.rFuelDecrease) - 0.1).toFixed(1);
-          REACTOR.fuelRodLifeUpgradeCost = num(REACTOR.fuelRodLifeUpgradeCost) * 2;
-          break;
-      }
-      _loadScreen();
+    
+  if (cost === undefined) {
+    displayMessage("Upgrade Failed", `Unable to upgrade ${item}`);
+  } else {
+    if (cost > data.user.money) {
+      displayMessage("Insufficient Funds", `It costs £${comma(cost)} to upgrade ${item}`);
+    } else if (lvl + 1 > max) {
+      displayMessage("Upgrade Failed", `Cannot upgrade ${item} as it is at its max level [level ${max}]`);
     } else {
-      displayMessage("Unable to Upgrade Item", con.responseText);
+      data.user.money -= cost;
+      action();
+      displayMessage("Upgrade Successful", `Upgraded ${item} for £${comma(cost)}`);
+      _loadScreen();
     }
   }
-  con.send();
 }
 
-// TODO
-function build(item, cost) {
-  return displayMessage("Coming Soon", "This feature is still under development");
-  
-  // Check if they are over the max limit
-  if (item == "turbine") {
-    if ((num(REACTOR.numberOfTurbines) + 1) > num(REACTOR.howManyTurbinesSupport)) {
-      displayMessage("Unable to Build Turbine", `You have reached the maximum number of turbines for this size reactor. Upgrade reactor size to build more turbines`);
-      return false;
-    }
-  } else if (item == "generator") {
-    if ((num(REACTOR.numberOfGenerators) + 1) > num(REACTOR.howManyGeneratorsSupport)) {
-      displayMessage("Unable to Build generator", `You have reached the maximum number of generators for this size reactor. Upgrade reactor size to build more generators`);
-      return false;
-    }
-  } else { return false; }
-  var con = new XMLHttpRequest();
-  con.open("GET", `php/money.php?token=666b&action=DEC&amount=${cost}`);
-  con.onload = () => {
-    console.log(con.responseText)
-    if (con.responseText == "OK") {
-      switch (item) {
-        case 'turbine':
-          REACTOR.numberOfTurbines = num(REACTOR.numberOfTurbines) + 1;
-          REACTOR.buildTurbineCost = num(REACTOR.buildTurbineCost) * 2;
-          break;
-        case 'generator':
-          REACTOR.numberOfGenerators = num(REACTOR.numberOfGenerators) + 1;
-          REACTOR.buildGeneratorCost = num(REACTOR.buildGeneratorCost) * 2;
-          break;
-      }
-      _loadScreen();
+function build(item) {
+  let cost, lvl, max, action;
+  switch (item) {
+    case "turbine":
+      cost = reactor.buildTurbineCost;
+      lvl = reactor.numberOfTurbines;
+      max = reactor.howManyGeneratorsSupport;
+      action = () => {
+        reactor.numberOfTurbines++;
+        reactor.buildTurbineCost *= 2;
+      };
+      break;
+    case "generator":
+      cost = reactor.buildGeneratorCost;
+      lvl = reactor.numberOfGenerators;
+      max = reactor.howManyGeneratorsSupport;
+      action = () => {
+        reactor.numberOfGenerators++;
+        reactor.buildGeneratorCost *= 2;
+      };
+      break;
+  }
+
+  if (cost === undefined) {
+    displayMessage("Build Failed", `Unable to build ${item}`);
+  } else {
+    if (cost > data.user.money) {
+      displayMessage("Insufficient Funds", `It costs £${comma(cost)} to build ${item}`);
+    } else if (lvl + 1 > max) {
+      displayMessage("Build Failed", `Cannot build ${item} as the reactor cannot support any more [count: ${max}]`);
     } else {
-      displayMessage("Unable to Build Item", con.responseText);
+      data.user.money -= cost;
+      action();
+      displayMessage("Build Successful", `Built ${item} for £${comma(cost)}`);
+      _loadScreen();
     }
   }
-  con.send();
 }
 
 /** Advance simulation time */
 function moveTime() {
   // Add one to hour (time)
-  if (23 < num(data.user.time) + 1) {
-    data.user.dayOfMonth = num(data.user.dayOfMonth) + 1, data.user.day = num(data.user.day) + 1, data.user.time = 0;
+  if (23 < data.user.time + 1) {
+    data.user.dayOfMonth = data.user.dayOfMonth + 1, data.user.day = data.user.day + 1, data.user.time = 0;
     editDemand(1);
     let R = random(1, 2);
     R == 2 && editDemand(2);
-  } else { data.user.time = num(data.user.time) + 1; editDemand(1); }
+  } else { data.user.time = data.user.time + 1; editDemand(1); }
   // Check if data.user.day > 6 - Sunday ===> (reset back to 0 - Mon)
-  if (6 < num(data.user.day)) data.user.day = 0;
+  if (6 < data.user.day) data.user.day = 0;
   // Check if too many days in month
   let maxDays = maxDaysOfMonths[data.user.month];
-  num(data.user.dayOfMonth) > maxDays && (data.user.month = num(data.user.month) + 1, data.user.dayOfMonth = 1);
+  data.user.dayOfMonth > maxDays && (data.user.month = data.user.month + 1, data.user.dayOfMonth = 1);
   // If months > 11 (december), reset do Jan
-  11 < num(data.user.month) && (data.user.month = 0);
+  11 < data.user.month && (data.user.month = 0);
   // Time of day
-  let time = num(data.user.time); var t;
+  let time = data.user.time; var t;
   if (time == 0) t = "midnight";
   if (time >= 1) t = "night";
   if (time >= 4) t = "twilight";
