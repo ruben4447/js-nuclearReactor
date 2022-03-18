@@ -111,8 +111,8 @@ class UserPageConnection extends Connection {
 
 // For view.html
 class ReactorPageConnection extends Connection {
-  constructor(socket, data, submitAuthOnInit = true) {
-    super(socket, data, submitAuthOnInit);
+  constructor(socket, data) {
+    super(socket, data, false);
     this._init();
   }
 
@@ -133,6 +133,7 @@ class ReactorPageConnection extends Connection {
       reactor.totalMoneyGenerated += income;
       this.socket.emit("offline-earnings", { time: difference, income });
     }
+    this.sendData(true);
 
     this.socket.on("disconnect", async () => {
       const reactor = this.reactor();
