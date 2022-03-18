@@ -2,4 +2,4 @@
 
 Basic nuclear reactor simulator game.
 
-**NOTE** currently being adapted from an older version created in 2019 by me.
+**NOTE** adapted from an older version created in 2019 which uses PHP/XMLHTTP requests on an NGINX server

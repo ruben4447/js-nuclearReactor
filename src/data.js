@@ -42,7 +42,7 @@ function createNewUserDataObject() {
     REACTOR_DO_DAMAGE: true,
     REACTOR_DEPLETE_FUEL: true,
     REACTOR_MOVE_TIME: true,
-    REACTOR_MOVE_TIME_EVERY: 1e3,
+    REACTOR_MOVE_TIME_EVERY: 36 * 1e3,
   };
 }
 
