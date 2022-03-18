@@ -54,7 +54,7 @@ function main() {
 
   if (initial) {
     dmgDome();
-    setIncome();
+    if (reactor.connectedToGrid) setIncome();
     setFuelDep();
     editDemand(2);
     if (data.user.REACTOR_MOVE_TIME == true) setInterval(moveTime, data.user.REACTOR_MOVE_TIME_EVERY);
@@ -76,8 +76,8 @@ function main() {
     document.getElementById("btn-coolant-min").addEventListener("click", () => coolantPumps("TO:0"));
     document.getElementById("btn-coolant-mid").addEventListener("click", () => coolantPumps("TO:50"));
     document.getElementById("btn-coolant-max").addEventListener("click", () => coolantPumps("TO:100"));
-    document.getElementById("btn-grid-connect").addEventListener("click", () => socket.emit("connect-grid", true));
-    document.getElementById("btn-grid-disconnect").addEventListener("click", () => socket.emit("connect-grid", false));
+    document.getElementById("btn-grid-connect").addEventListener("click", () => connectToGrid(true));
+    document.getElementById("btn-grid-disconnect").addEventListener("click", () => connectToGrid(false));
     document.getElementById("btn-upgrade-containmentDome").addEventListener("click", () => upgrade('containment dome'));
     document.getElementById("btn-upgrade-reactorSize").addEventListener("click", () => upgrade('reactor size'));
     document.getElementById("btn-upgrade-steam").addEventListener("click", () => upgrade('steam'));
@@ -490,7 +490,12 @@ function coolantPumps(action) {
 }
 
 function connectToGrid(bool) {
-  reactor.connectToGrid = bool;
+  reactor.connectedToGrid = bool;
+  if (bool) {
+    setIncome(); // Start calculating and generating income
+  } else {
+    clearInterval(incomePS); // Cancel income
+  }
   _loadScreen();
 }
 
