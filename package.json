@@ -13,7 +13,6 @@
     "express": "^4.17.3",
     "express-session": "^1.17.2",
     "socket.io": "^4.4.1",
-    "sqlite3": "^5.0.2",
     "uuid": "^3.4.0"
   }
 }
